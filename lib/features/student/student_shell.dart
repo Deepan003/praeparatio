@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -116,12 +117,10 @@ class _StudentShellState extends ConsumerState<StudentShell> {
       );
     }
 
-    final bottomItems = _allNavItems.take(4).toList();
-    if (isDevEnabled) {
-      bottomItems.add(const NavItem(label: 'Dev', icon: Icons.code_rounded, selectedIcon: Icons.code_rounded, route: 'dev'));
-    } else {
-      bottomItems.add(const NavItem(label: 'More', icon: Icons.grid_view_outlined, selectedIcon: Icons.grid_view_rounded, route: ''));
-    }
+    // 5th slot is always "More" — dev access is via the AppBar animated icon
+    final bottomItems = _allNavItems.take(4).toList()
+      ..add(const NavItem(label: 'More', icon: Icons.grid_view_outlined,
+          selectedIcon: Icons.grid_view_rounded, route: ''));
 
     int allIdx = _allNavItems.indexWhere(
         (i) => i.route.isNotEmpty && location.startsWith(i.route));
@@ -196,13 +195,24 @@ class _StudentShellState extends ConsumerState<StudentShell> {
           Builder(builder: (ctx) => NotificationBell(
             onTap: () => showNotificationSheet(ctx),
           )),
-          const SizedBox(width: 4),
-          if (isMobile)
+          const SizedBox(width: 8),
+          if (isMobile) ...[
+            // Animated developer icon — only when dev mode is enabled
+            Consumer(builder: (ctx, ref, _) {
+              final devAsync = ref.watch(developerInfoProvider);
+              if (devAsync.value?.isEnabled != true) return const SizedBox.shrink();
+              return _AnimatedDevIcon(
+                onTap: () => showDeveloperModal(context, devAsync.value!),
+              );
+            }),
+            const SizedBox(width: 4),
             Builder(builder: (ctx) => NeuIconButton(
               icon: Icons.menu_rounded,
               onPressed: () => Scaffold.of(ctx).openDrawer(),
               size: 40,
-            ))
+            )),
+            const SizedBox(width: 4),
+          ]
           else ...[
             Consumer(builder: (ctx, ref, _) {
               final devAsync = ref.watch(developerInfoProvider);
@@ -278,9 +288,8 @@ class _StudentShellState extends ConsumerState<StudentShell> {
             child: Row(
               children: bottomItems.map((item) {
                 final isSel = item.route.isNotEmpty &&
-                    location.startsWith(item.route) && item.route != 'dev';
+                    location.startsWith(item.route);
                 final isMore = item.route.isEmpty;
-                final isDev = item.route == 'dev';
 
                 return Expanded(
                   child: GestureDetector(
@@ -288,11 +297,20 @@ class _StudentShellState extends ConsumerState<StudentShell> {
                     onTap: () {
                       HapticFeedback.selectionClick();
                       if (isMore) {
-                        Scaffold.of(context).openDrawer();
-                      } else if (isDev) {
-                        if (devInfoAsync.value != null) {
-                          showDeveloperModal(context, devInfoAsync.value!);
-                        }
+                        // All-features grid sheet
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (_) => _StudentMoreSheet(
+                            items: _allNavItems,
+                            currentLocation: location,
+                            onSelect: (route) {
+                              Navigator.pop(context);
+                              context.go(route);
+                            },
+                          ),
+                        );
                       } else {
                         context.go(item.route);
                       }
@@ -325,21 +343,22 @@ class _StudentShellState extends ConsumerState<StudentShell> {
       child: Column(children: [
         // ── Compact header — name, batch, pill row ──
         Container(
+          width: double.infinity,
           decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
-          padding: const EdgeInsets.fromLTRB(16, 46, 16, 14),
+          padding: const EdgeInsets.fromLTRB(20, 52, 20, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(user?.name ?? 'Student',
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
                   overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(user?.batch ?? '',
                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.75))),
-              const SizedBox(height: 8),
+                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.75))),
+              const SizedBox(height: 14),
               // PrepCoins + @username + Class in one pill row
-              Wrap(spacing: 6, runSpacing: 4, children: [
+              Wrap(spacing: 8, runSpacing: 6, children: [
                 if (user != null) ...[
                   _HeaderPill('🪙 ${user.prepcoins}', Colors.amber.shade300),
                   _HeaderPill(displayUsername, Colors.white.withOpacity(0.85)),
@@ -717,6 +736,116 @@ class _SideRail extends StatelessWidget {
 }
 
 
+// ── Bottom-sheet app drawer for "More" in mobile bottom nav ──
+class _StudentMoreSheet extends StatelessWidget {
+  final List<NavItem> items;
+  final String currentLocation;
+  final ValueChanged<String> onSelect;
+
+  const _StudentMoreSheet({
+    required this.items,
+    required this.currentLocation,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+      decoration: BoxDecoration(
+        color: AppColors.neuBackground,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: AppColors.neuRaisedStrong,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle
+          const SizedBox(height: 12),
+          Container(
+            width: 36, height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Header
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(children: [
+              Icon(Icons.apps_rounded, size: 16, color: AppColors.textSecondary),
+              SizedBox(width: 8),
+              Text('All Features', style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary)),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          // 3-column grid of ALL nav items
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 3,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            childAspectRatio: 1.25,
+            children: items.map((item) {
+              final isSel = item.route.isNotEmpty &&
+                  currentLocation.startsWith(item.route);
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onSelect(item.route);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSel ? AppColors.primarySurface : AppColors.neuSurface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isSel
+                          ? AppColors.primary.withOpacity(0.3)
+                          : AppColors.border,
+                    ),
+                    boxShadow: AppColors.neuRaisedSoft,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      item.route == Routes.studentBioLab
+                          ? _BioLabNavIcon(selected: isSel, size: 22)
+                          : Icon(
+                              isSel ? item.selectedIcon : item.icon,
+                              size: 22,
+                              color: isSel
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary,
+                            ),
+                      const SizedBox(height: 5),
+                      Text(item.label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isSel
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // Small inline pill used in drawer header row
 Widget _HeaderPill(String label, Color textColor) => Container(
   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -786,4 +915,89 @@ class _BioLabNavIconState extends State<_BioLabNavIcon>
       },
     );
   }
+}
+
+// ── Animated developer icon with spinning gradient ring ────────
+class _AnimatedDevIcon extends StatefulWidget {
+  final VoidCallback onTap;
+  const _AnimatedDevIcon({required this.onTap});
+
+  @override
+  State<_AnimatedDevIcon> createState() => _AnimatedDevIconState();
+}
+
+class _AnimatedDevIconState extends State<_AnimatedDevIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, child) => CustomPaint(
+              painter: _SpinningRingPainter(_ctrl.value),
+              child: child,
+            ),
+            child: Container(
+              width: 34, height: 34,
+              decoration: const BoxDecoration(
+                color: AppColors.primarySurface,
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Icon(Icons.code_rounded, size: 17, color: AppColors.primary),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _SpinningRingPainter extends CustomPainter {
+  final double progress;
+  _SpinningRingPainter(this.progress);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r  = size.width / 2 + 4.0;
+
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..shader = SweepGradient(
+          colors: const [
+            Colors.transparent,
+            AppColors.primary,
+            AppColors.primaryLight,
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.3, 0.7, 1.0],
+          transform: GradientRotation(progress * 2 * math.pi),
+        ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SpinningRingPainter old) => old.progress != progress;
 }

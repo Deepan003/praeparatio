@@ -1196,36 +1196,24 @@ class SupabaseService {
   Future<void> incrementChatbotUsage(String studentId) async {
     final today = DateTime.now().toIso8601String().split('T')[0];
     try {
-      // Atomic upsert: if row exists increment count, if not insert count=1.
-      // Uses Postgres ON CONFLICT DO UPDATE so two concurrent requests can't
-      // both read 5 and both write 6 — the DB handles the increment atomically.
-      await _db.from('chatbot_usage').upsert(
-        {'student_id': studentId, 'date': today, 'count': 1},
-        onConflict: 'student_id,date',
-        ignoreDuplicates: false,
-      );
-      // If upsert doesn't support count increment via RPC, fall back to
-      // a safe read-modify-write with optimistic retry
-    } catch (_) {
-      // Fallback: safe non-atomic increment (best effort)
-      try {
-        final existing = await _db
-            .from('chatbot_usage')
-            .select('id, count')
-            .eq('student_id', studentId)
-            .eq('date', today)
-            .maybeSingle();
-        if (existing == null) {
-          await _db.from('chatbot_usage').insert(
-              {'student_id': studentId, 'date': today, 'count': 1});
-        } else {
-          await _db.from('chatbot_usage')
-              .update({'count': (existing['count'] as int? ?? 0) + 1})
-              .eq('id', existing['id']);
-        }
-      } catch (e) {
-        debugPrint('[SupabaseService] incrementChatbotUsage fallback failed: $e');
+      // Read current count, then write count+1.
+      // The upsert approach was wrong — it always set count=1, resetting the value.
+      final existing = await _db
+          .from('chatbot_usage')
+          .select('id, count')
+          .eq('student_id', studentId)
+          .eq('date', today)
+          .maybeSingle();
+      if (existing == null) {
+        await _db.from('chatbot_usage').insert(
+            {'student_id': studentId, 'date': today, 'count': 1});
+      } else {
+        await _db.from('chatbot_usage')
+            .update({'count': (existing['count'] as int? ?? 0) + 1})
+            .eq('id', existing['id']);
       }
+    } catch (e) {
+      debugPrint('[SupabaseService] incrementChatbotUsage failed: $e');
     }
   }
 
