@@ -1,0 +1,94 @@
+name: praeparatio
+description: "PRAEPARATIO - NEET Biology Preparation Platform"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # UI & Animations
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  lottie: ^3.1.2
+  percent_indicator: ^4.2.3
+  confetti: ^0.7.0
+  shimmer: ^3.0.0
+  animated_text_kit: ^4.2.3
+  flip_card: ^0.7.0
+
+  # Charts & Calendar
+  fl_chart: ^0.69.0
+  table_calendar: ^3.1.2
+
+  # Database - Supabase (primary cloud DB)
+  supabase_flutter: ^2.5.0
+
+  # Local cache / offline
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+
+  # File handling
+  file_picker: ^8.1.2
+  csv: ^6.0.0
+  uuid: ^4.5.1
+  intl: ^0.19.0
+
+  # PDF
+  pdf: ^3.11.1
+  printing: ^5.13.1
+
+  # In-app PDF/web viewer (renders Google Drive PDFs inside the app)
+  webview_flutter: ^4.10.0
+
+  # Network
+  http: ^1.2.2
+  cached_network_image: ^3.4.1
+  url_launcher: ^6.3.1
+
+  # Security
+  crypto: ^3.0.5
+
+  # Tables
+  data_table_2: ^2.5.12
+
+  # Misc
+  collection: ^1.18.0
+  flutter_markdown: ^0.7.4
+  auto_size_text: ^3.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#4E46A8"
+  adaptive_icon_foreground: "assets/images/app_icon_fg.png"
+  min_sdk_android: 21
+  web:
+    generate: false
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # assets/ncert/ removed — PDFs served via external links, not bundled in the app
+    - assets/images/
+    - assets/animations/
