@@ -434,9 +434,7 @@ class _OfflineDetail extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w900,
-                          color: AppColors.accent),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                          color: AppColors.accent)),
                 ),
               ]),
             ).animate(delay: 150.ms).fadeIn(),
@@ -451,50 +449,60 @@ class _OfflineDetail extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary)),
             const SizedBox(height: 10),
-            ...allScores.take(10).toList().asMap().entries.map((e) {
-              final rank = e.key + 1;
-              final name = studentMap[e.value.key]?.name ?? 'Unknown';
-              final isMe = e.value.key == studentId;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isMe
-                      ? AppColors.primarySurface
-                      : AppColors.neuSurface,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: isMe ? AppColors.neuRaisedSoft : null,
-                  border: isMe
-                      ? Border.all(color: AppColors.primary, width: 1.2)
-                      : null,
-                ),
-                child: Row(children: [
-                  _RankBadge(rank),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(isMe ? 'You ($name)' : name,
+            ...() {
+              // Compute true rank: tied scores get the same rank number
+              final top10 = allScores.take(10).toList();
+              int trueRank = 1;
+              int prevScore = -1;
+              return top10.asMap().entries.map((e) {
+                final score = e.value.value;
+                if (score != prevScore) {
+                  trueRank = e.key + 1;
+                  prevScore = score;
+                }
+                final name = studentMap[e.value.key]?.name ?? 'Unknown';
+                final isMe = e.value.key == studentId;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isMe
+                        ? AppColors.primarySurface
+                        : AppColors.neuSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: isMe ? AppColors.neuRaisedSoft : null,
+                    border: isMe
+                        ? Border.all(color: AppColors.primary, width: 1.2)
+                        : null,
+                  ),
+                  child: Row(children: [
+                    _RankBadge(trueRank),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(isMe ? 'You ($name)' : name,
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight:
+                                  isMe ? FontWeight.w800 : FontWeight.w500,
+                              color: isMe
+                                  ? AppColors.primary
+                                  : AppColors.textPrimary)),
+                    ),
+                    Text('${e.value.value}',
                         style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight:
-                                isMe ? FontWeight.w800 : FontWeight.w500,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
                             color: isMe
                                 ? AppColors.primary
                                 : AppColors.textPrimary)),
-                  ),
-                  Text('${e.value.value}',
-                      style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: isMe
-                              ? AppColors.primary
-                              : AppColors.textPrimary)),
-                  Text(' / ${test.fullMarks}',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
-                ]),
-              ).animate(delay: (e.key * 30).ms).fadeIn(duration: 200.ms);
-            }),
+                    Text(' / ${test.fullMarks}',
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
+                  ]),
+                ).animate(delay: (e.key * 30).ms).fadeIn(duration: 200.ms);
+              }).toList();
+            }(),
           ],
         ],
       ),
@@ -868,8 +876,18 @@ class _RankBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = [AppColors.accent, AppColors.textSecondary, const Color(0xFFB45309)];
-    final color = rank <= 3 ? colors[rank - 1] : AppColors.neuBackground;
+    // Rank colour based on actual rank (true rank after tie resolution)
+    final Color color;
+    if (rank == 1) {
+      color = AppColors.accent;            // gold for all rank-1 ties
+    } else if (rank == 2) {
+      color = AppColors.textSecondary;     // silver
+    } else if (rank == 3) {
+      color = const Color(0xFFB45309);     // bronze
+    } else {
+      color = AppColors.neuBackground;
+    }
+    final bool isTop3 = rank <= 3;
     return Container(
       width: 24, height: 24,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
@@ -878,7 +896,7 @@ class _RankBadge extends StatelessWidget {
             style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
-                color: rank <= 3 ? Colors.white : AppColors.textSecondary)),
+                color: isTop3 ? Colors.white : AppColors.textSecondary)),
       ),
     );
   }
