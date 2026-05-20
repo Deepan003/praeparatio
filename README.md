@@ -18,7 +18,7 @@
 <br/>
 
 ![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Android-blueviolet?style=for-the-badge)
-![Version](https://img.shields.io/badge/Version-2.0.0-success?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-2.1.0-success?style=for-the-badge)
 ![Dart Files](https://img.shields.io/badge/Dart_Files-120+-informational?style=for-the-badge)
 ![Bio Diagrams](https://img.shields.io/badge/Bio_Diagrams-32_Animated-ff69b4?style=for-the-badge)
 ![Badges](https://img.shields.io/badge/Achievement_Badges-90-gold?style=for-the-badge)

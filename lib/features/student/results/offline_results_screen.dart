@@ -450,14 +450,16 @@ class _OfflineDetail extends StatelessWidget {
                     color: AppColors.textPrimary)),
             const SizedBox(height: 10),
             ...() {
-              // Compute true rank: tied scores get the same rank number
               final top10 = allScores.take(10).toList();
-              int trueRank = 1;
+              // scoreTier: 0=gold, 1=silver, 2=bronze, 3+=plain
+              // displayRank: 1 for all tied top, 2 for next tier, etc.
+              int scoreTier = 0;
+              int displayRank = 1;
               int prevScore = -1;
               return top10.asMap().entries.map((e) {
                 final score = e.value.value;
                 if (score != prevScore) {
-                  trueRank = e.key + 1;
+                  if (prevScore != -1) { scoreTier++; displayRank++; }
                   prevScore = score;
                 }
                 final name = studentMap[e.value.key]?.name ?? 'Unknown';
@@ -477,7 +479,7 @@ class _OfflineDetail extends StatelessWidget {
                         : null,
                   ),
                   child: Row(children: [
-                    _RankBadge(trueRank),
+                    _RankBadge(displayRank, tier: scoreTier),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(isMe ? 'You ($name)' : name,
@@ -871,23 +873,18 @@ class _ScoreTile extends StatelessWidget {
 }
 
 class _RankBadge extends StatelessWidget {
-  final int rank;
-  const _RankBadge(this.rank);
+  final int rank; // display number shown inside the circle
+  final int tier; // 0=gold, 1=silver, 2=bronze, 3+=plain
+  const _RankBadge(this.rank, {this.tier = 3});
 
   @override
   Widget build(BuildContext context) {
-    // Rank colour based on actual rank (true rank after tie resolution)
     final Color color;
-    if (rank == 1) {
-      color = AppColors.accent;            // gold for all rank-1 ties
-    } else if (rank == 2) {
-      color = AppColors.textSecondary;     // silver
-    } else if (rank == 3) {
-      color = const Color(0xFFB45309);     // bronze
-    } else {
-      color = AppColors.neuBackground;
-    }
-    final bool isTop3 = rank <= 3;
+    if (tier == 0)      color = AppColors.accent;                  // gold
+    else if (tier == 1) color = AppColors.textSecondary;           // silver
+    else if (tier == 2) color = const Color(0xFFB45309);           // bronze
+    else                color = AppColors.neuBackground;
+    final bool coloured = tier <= 2;
     return Container(
       width: 24, height: 24,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
@@ -896,7 +893,7 @@ class _RankBadge extends StatelessWidget {
             style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
-                color: isTop3 ? Colors.white : AppColors.textSecondary)),
+                color: coloured ? Colors.white : AppColors.textSecondary)),
       ),
     );
   }
