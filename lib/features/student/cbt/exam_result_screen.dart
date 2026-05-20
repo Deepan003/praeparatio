@@ -68,7 +68,8 @@ class _ExamResultScreenState extends ConsumerState<ExamResultScreen> {
   // Class ranking
   int? _classRank;
   int? _classTotal;
-  List<UserModel> _topScorers = [];
+  // Each entry = (name, neetScore) so _ClassRankCard can determine ties
+  List<(String, int)> _topScorers = [];
 
   @override
   void initState() {
@@ -95,7 +96,7 @@ class _ExamResultScreenState extends ConsumerState<ExamResultScreen> {
 
     // Compute class ranking only if admin has published results
     int? rank, total;
-    final topScorers = <UserModel>[];
+    final topScorers = <(String, int)>[];
     ExamModel? loadedExam;
     if (result != null) {
       try {
@@ -109,9 +110,13 @@ class _ExamResultScreenState extends ConsumerState<ExamResultScreen> {
           total = allResults.length;
           final myIdx = allResults.indexWhere((r) => r.studentId == result!.studentId);
           if (myIdx >= 0) rank = myIdx + 1;
-          for (final r in allResults.take(3)) {
+          // Collect top scorers with their scores to handle ties correctly
+          final topScore = allResults.isEmpty ? 0 : allResults.first.neetScore;
+          for (final r in allResults.take(10)) {
             final u = await SupabaseService.instance.getUserById(r.studentId);
-            if (u != null) topScorers.add(u);
+            if (u != null) topScorers.add((u.name, r.neetScore));
+            if (r.neetScore < topScore && topScorers.length >= 3) break;
+            if (topScorers.length >= 6) break;
           }
         }
       } catch (_) {}
@@ -611,13 +616,14 @@ class _DownloadActionBtn extends StatelessWidget {
 class _ClassRankCard extends StatelessWidget {
   final int rank;
   final int total;
-  final List<UserModel> topScorers;
+  // (name, neetScore) — score included so we can show 🥇 for all ties at rank 1
+  final List<(String, int)> topScorers;
   const _ClassRankCard(
       {required this.rank, required this.total, required this.topScorers});
 
   @override
   Widget build(BuildContext context) {
-    final medals = ['🥇', '🥈', '🥉'];
+    const medals = ['🥇', '🥈', '🥉'];
     final isTop3 = rank <= 3;
     final medal = isTop3 ? medals[rank - 1] : null;
 
@@ -728,23 +734,60 @@ class _ClassRankCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: AppColors.textSecondary)),
             const SizedBox(height: 6),
-            ...topScorers.asMap().entries.map((e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(children: [
-                    Text(medals[e.key],
-                        style: const TextStyle(fontSize: 14)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(e.value.name,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                  ]),
-                )),
+            ...() {
+              // Determine unique score tiers: all tied at top score get 🥇
+              final topScore = topScorers.first.$2;
+              int tier = 0; // 0=gold,1=silver,2=bronze
+              int prevScore = -1;
+              return topScorers.map((entry) {
+                if (entry.$2 != prevScore) {
+                  if (prevScore != -1) tier++;
+                  prevScore = entry.$2;
+                }
+                final medal = tier == 0
+                    ? '🥇'
+                    : tier == 1
+                        ? '🥈'
+                        : '🥉';
+                final rankNum = tier == 0 ? '1' : tier == 1 ? '2' : '3';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(medal, style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          entry.$1, // full name, no truncation
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: tier == 0
+                                ? const Color(0xFF7B4F00)
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      if (tier == 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB300).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text('#$rankNum',
+                              style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF7B4F00))),
+                        ),
+                    ],
+                  ),
+                );
+              }).toList();
+            }(),
           ],
         ],
       ),

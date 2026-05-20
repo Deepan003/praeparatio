@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -1103,15 +1104,45 @@ class _OfflineMarksSheetState extends ConsumerState<_OfflineMarksSheet> {
   List<OfflineTestModel> _tests = [];
   bool _loading = true;
   OfflineTestModel? _selectedTest;
+  RealtimeChannel? _realtimeChannel;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    // Realtime: refresh whenever any offline_test row changes for this batch
+    _realtimeChannel = Supabase.instance.client
+        .channel('offline_tests_admin_${widget.batch.hashCode}')
+        .onPostgresChanges(
+          event:  PostgresChangeEvent.all,
+          schema: 'public',
+          table:  'offline_tests',
+          callback: (payload) { if (mounted) _load(); },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     final students = await SupabaseService.instance.getStudentsByBatch(widget.batch);
-    final tests = await SupabaseService.instance.getOfflineTestsByBatch(widget.batch);
-    setState(() { _students = students; _tests = tests; _loading = false; if (_tests.isNotEmpty && _selectedTest == null) _selectedTest = _tests.first; });
+    final tests    = await SupabaseService.instance.getOfflineTestsByBatch(widget.batch);
+    // Always refresh _selectedTest from the new data so marks display correctly
+    final refreshed = _selectedTest == null
+        ? (tests.isNotEmpty ? tests.first : null)
+        : tests.firstWhere((t) => t.id == _selectedTest!.id,
+            orElse: () => tests.isNotEmpty ? tests.first : _selectedTest!);
+    setState(() {
+      _students     = students;
+      _tests        = tests;
+      _loading      = false;
+      _selectedTest = refreshed;
+    });
   }
 
   Future<Uint8List> _progressCsv() async =>
@@ -1216,7 +1247,8 @@ class _OfflineMarksSheetState extends ConsumerState<_OfflineMarksSheet> {
         Expanded(
           child: _selectedTest == null
               ? const Center(child: Text('Select or add a test', style: TextStyle(color: AppColors.textHint)))
-              : _MarksTable(test: _selectedTest!, students: _students, onSave: _load),
+              : _MarksTable(test: _selectedTest!, students: _students,
+                    onSave: _load, batch: widget.batch),
         ),
       ],
     );
@@ -1227,7 +1259,9 @@ class _MarksTable extends StatefulWidget {
   final OfflineTestModel test;
   final List<UserModel> students;
   final VoidCallback onSave;
-  const _MarksTable({required this.test, required this.students, required this.onSave});
+  final String batch;
+  const _MarksTable({required this.test, required this.students,
+      required this.onSave, required this.batch});
 
   @override
   State<_MarksTable> createState() => _MarksTableState();
@@ -1239,7 +1273,21 @@ class _MarksTableState extends State<_MarksTable> {
   @override
   void initState() {
     super.initState();
-    _ctrls = {for (final s in widget.students) s.id: TextEditingController(text: widget.test.studentMarks[s.id]?.toString() ?? '')};
+    _ctrls = {for (final s in widget.students) s.id: TextEditingController(
+        text: widget.test.studentMarks[s.id]?.toString() ?? '')};
+  }
+
+  @override
+  void didUpdateWidget(_MarksTable old) {
+    super.didUpdateWidget(old);
+    // When test data refreshes after save, reinitialise all controllers
+    // so the latest marks from the DB are reflected immediately.
+    if (old.test.id != widget.test.id ||
+        old.test.studentMarks != widget.test.studentMarks) {
+      for (final c in _ctrls.values) c.dispose();
+      _ctrls = {for (final s in widget.students) s.id: TextEditingController(
+          text: widget.test.studentMarks[s.id]?.toString() ?? '')};
+    }
   }
 
   @override
@@ -1267,11 +1315,31 @@ class _MarksTableState extends State<_MarksTable> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              Text(widget.test.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-              const SizedBox(width: 12),
-              Text('Full Marks: ${widget.test.fullMarks}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-              const Spacer(),
-              GradientButton(label: 'Save Marks', icon: Icons.save, onPressed: _save, width: 130),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.test.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                        overflow: TextOverflow.ellipsis),
+                    Text('Full Marks: ${widget.test.fullMarks}',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Per-exam report download
+              DownloadButton(
+                label: 'Report',
+                filename: 'Test_Report_${widget.test.name.replaceAll(' ', '_')}',
+                csvBuilder: () async =>
+                    CsvService.exportTestProgressReport([widget.test], widget.students),
+                pdfBuilder: () => PdfService.singleTestReportPdf(
+                    test: widget.test, students: widget.students, batch: widget.batch),
+                compact: true,
+              ),
+              const SizedBox(width: 8),
+              GradientButton(label: 'Save', icon: Icons.save, onPressed: _save, width: 90),
             ],
           ),
         ),

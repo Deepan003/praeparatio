@@ -1341,6 +1341,154 @@ class PdfService {
   }
 
   // ════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════
+  // 5a. SINGLE OFFLINE TEST REPORT PDF
+  // ════════════════════════════════════════════════════════════
+  static Future<Uint8List> singleTestReportPdf({
+    required OfflineTestModel test,
+    required List<UserModel> students,
+    required String batch,
+  }) async {
+    final doc = pw.Document();
+    final now = _fmt(DateTime.now());
+    final intl = DateFormat('dd MMM yyyy');
+    final testDate = intl.format(test.date);
+
+    // Build sorted student rows
+    final rows = students.map((s) {
+      final marks = test.studentMarks[s.id];
+      final pct = (marks != null && test.fullMarks > 0)
+          ? (marks / test.fullMarks * 100)
+          : null;
+      return (student: s, marks: marks, pct: pct);
+    }).toList()
+      ..sort((a, b) {
+        if (a.marks == null && b.marks == null) return 0;
+        if (a.marks == null) return 1;
+        if (b.marks == null) return -1;
+        return b.marks!.compareTo(a.marks!);
+      });
+
+    final attempted = rows.where((r) => r.marks != null).toList();
+    final topMark = attempted.isEmpty ? 0 : attempted.first.marks!;
+    final topScorers = attempted.where((r) => r.marks == topMark).toList();
+    final avg = attempted.isEmpty
+        ? 0.0
+        : attempted.map((r) => r.marks!).reduce((a, b) => a + b) /
+            attempted.length;
+    final passCount = attempted.where((r) =>
+        test.fullMarks > 0 && (r.marks! / test.fullMarks) >= 0.35).length;
+
+    doc.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.fromLTRB(44, 44, 44, 44),
+      header: (ctx) => ctx.pageNumber == 1
+          ? pw.SizedBox(height: 0)
+          : pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 12),
+              child: _pageHeader(test.name, now)),
+      footer: (ctx) => pw.Padding(
+          padding: const pw.EdgeInsets.only(top: 10), child: _pageFooter(ctx)),
+      build: (ctx) => [
+        _headerBand(
+          title: test.name,
+          subtitle: '$batch  ·  $testDate  ·  Full Marks: ${test.fullMarks}',
+          right: 'Generated $now',
+        ),
+        pw.SizedBox(height: 16),
+
+        // Summary stats
+        pw.Row(children: [
+          _statBox('Students', '${attempted.length}/${students.length}', _primary),
+          _statBox('Average', '${avg.toStringAsFixed(1)}/${test.fullMarks}', _green),
+          _statBox('Pass Rate',
+              test.fullMarks > 0 ? _pct(passCount / (attempted.isEmpty ? 1 : attempted.length) * 100) : '—',
+              const PdfColor.fromInt(0xFF0288D1)),
+          _statBox('Top Score', '$topMark/${test.fullMarks}', _gold),
+        ]),
+        pw.SizedBox(height: 16),
+
+        // Top scorer(s) congratulation box
+        if (topScorers.isNotEmpty)
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+              color: _gold.shade(0.08),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+              border: pw.Border.all(color: _gold.shade(0.5)),
+            ),
+            child: pw.Row(children: [
+              pw.Text('🏆', style: const pw.TextStyle(fontSize: 18)),
+              pw.SizedBox(width: 10),
+              pw.Expanded(
+                child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                  pw.Text(
+                    topScorers.length == 1
+                        ? 'Top Scorer — ${topScorers.first.student.name}'
+                        : 'Top Scorers — ${topScorers.map((r) => r.student.name).join(', ')}',
+                    style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                        color: const PdfColor.fromInt(0xFF7B4F00)),
+                  ),
+                  pw.Text(
+                    'Score: $topMark / ${test.fullMarks}  ·  '
+                    '${test.fullMarks > 0 ? _pct(topMark / test.fullMarks * 100) : ""}  ·  '
+                    'Fantastic work — keep it up! 🌟',
+                    style: const pw.TextStyle(
+                        fontSize: 10,
+                        color: PdfColor.fromInt(0xFF7B4F00)),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        pw.SizedBox(height: 14),
+
+        // Marks table
+        pw.Text('Student Marks', style: _h2(_primary)),
+        pw.SizedBox(height: 8),
+        _tableHeader(
+          ['Name', 'Marks', 'Percentage', 'Status'],
+          [3.0, 1.2, 1.2, 1.0],
+        ),
+        ...rows.asMap().entries.map((e) {
+          final r = e.value;
+          final isTop = r.marks != null && r.marks == topMark;
+          final passed = r.marks != null && test.fullMarks > 0 &&
+              (r.marks! / test.fullMarks) >= 0.35;
+          return _tableRow(
+            [
+              r.student.name,
+              r.marks?.toString() ?? 'Absent',
+              r.pct != null ? _pct(r.pct!) : '—',
+              r.marks == null ? 'Absent' : (passed ? 'Pass' : 'Fail'),
+            ],
+            [3.0, 1.2, 1.2, 1.0],
+            shaded: e.key.isOdd,
+            rowColor: isTop
+                ? _gold.shade(0.08)
+                : (r.marks == null ? const PdfColor.fromInt(0xFFF5F5F5) : null),
+          );
+        }),
+
+        pw.SizedBox(height: 20),
+        pw.Divider(color: const PdfColor.fromInt(0xFFDEDEDE)),
+        pw.SizedBox(height: 6),
+        pw.Center(
+          child: pw.Text(
+            'PRAEPARATIO  ·  Examination is nothing but fine preparation.',
+            style: _small(const PdfColor.fromInt(0xFF9E9E9E)),
+          ),
+        ),
+      ],
+    ));
+
+    return doc.save();
+  }
+
   // 5. OFFLINE TEST PROGRESS PDF
   // ════════════════════════════════════════════════════════════
   static Future<Uint8List> testProgressPdf({
