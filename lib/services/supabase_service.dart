@@ -62,6 +62,33 @@ class SupabaseService {
     return (res as List).map((r) => _mapToUser(r)).toList();
   }
 
+  // ── Realtime streams for admin screens ───────────────────────
+
+  /// Live stream of all non-admin students — updates instantly when any user row changes.
+  Stream<List<UserModel>> streamAllStudents() {
+    return _db
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .order('name')
+        .map((rows) => rows
+            .where((r) => r['is_admin'] != true)
+            .map((r) => _mapToUser(Map<String, dynamic>.from(r)))
+            .toList());
+  }
+
+  /// Live stream of students for a specific batch.
+  Stream<List<UserModel>> streamStudentsByBatch(String batch) {
+    return _db
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .eq('batch', batch)
+        .order('name')
+        .map((rows) => rows
+            .where((r) => r['is_admin'] != true)
+            .map((r) => _mapToUser(Map<String, dynamic>.from(r)))
+            .toList());
+  }
+
   /// Lightweight search for the notification student picker — returns id+name+batch only.
   Future<List<Map<String, dynamic>>> searchStudents(String query) async {
     final res = await _db
@@ -111,6 +138,47 @@ class SupabaseService {
   Future<List<BatchModel>> getBatches() async {
     final res = await _db.from('batches').select().order('display_order');
     return (res as List).map((r) => BatchModel.fromMap(r)).toList();
+  }
+
+  /// Live stream of batches — updates instantly when admin creates/renames/deletes.
+  Stream<List<BatchModel>> streamBatches() {
+    return _db
+        .from('batches')
+        .stream(primaryKey: ['id'])
+        .order('display_order')
+        .map((rows) => rows
+            .map((r) => BatchModel.fromMap(Map<String, dynamic>.from(r)))
+            .toList());
+  }
+
+  /// Live stream of offline tests for a batch — updates when admin enters marks.
+  Stream<List<OfflineTestModel>> streamOfflineTestsByBatch(String batch) {
+    return _db
+        .from('offline_tests')
+        .stream(primaryKey: ['id'])
+        .eq('batch', batch)
+        .order('test_date', ascending: false)
+        .map((rows) => rows
+            .map((r) => OfflineTestModel(
+                  id: r['id'] as String,
+                  name: r['name'] as String,
+                  date: DateTime.parse(r['test_date'] as String),
+                  fullMarks: (r['full_marks'] as num).toInt(),
+                  batch: r['batch'] as String,
+                  studentMarks: Map<String, int?>.from(r['student_marks'] ?? {}),
+                ))
+            .toList());
+  }
+
+  /// Live stream of a single student's full user row (coins, badges, etc.).
+  Stream<UserModel?> streamUser(String userId) {
+    return _db
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .eq('id', userId)
+        .map((rows) => rows.isEmpty
+            ? null
+            : _mapToUser(Map<String, dynamic>.from(rows.first)));
   }
 
   Future<void> upsertBatch(BatchModel batch) async {
@@ -280,6 +348,8 @@ class SupabaseService {
         isAdmin: r['is_admin'] ?? false,
         isBanned: r['is_banned'] ?? false,
         earnedBadgeIds: List<String>.from(r['earned_badge_ids'] ?? []),
+        gamesPlayed: List<String>.from(r['games_played'] ?? []),
+        bioLabCompleted: List<String>.from(r['biolab_completed'] ?? []),
         selectedAvatarId: r['selected_avatar_id'],
         claimedAvatarIds: List<String>.from(r['claimed_avatar_ids'] ?? []),
         monthlyPayments: (r['monthly_payments'] as Map? ?? {})
@@ -1191,6 +1261,51 @@ class SupabaseService {
     } catch (_) {
       return 0;
     }
+  }
+
+  /// Sum of all chatbot questions ever asked by this student
+  Future<int> getChatbotUsageTotal(String studentId) async {
+    try {
+      final res = await _db
+          .from('chatbot_usage')
+          .select('count')
+          .eq('student_id', studentId);
+      return (res as List).fold<int>(0, (s, r) => s + ((r['count'] as int?) ?? 0));
+    } catch (_) { return 0; }
+  }
+
+  /// Update earned badges list in DB
+  Future<void> updateEarnedBadges(String studentId, List<String> badgeIds) async {
+    try {
+      await _db.from('users').update({'earned_badge_ids': badgeIds}).eq('id', studentId);
+    } catch (e) { debugPrint('[Supabase] updateEarnedBadges: $e'); }
+  }
+
+  /// Update games played list in DB
+  Future<void> updateGamesPlayed(String studentId, List<String> games) async {
+    try {
+      await _db.from('users').update({'games_played': games}).eq('id', studentId);
+    } catch (e) { debugPrint('[Supabase] updateGamesPlayed: $e'); }
+  }
+
+  /// Update bio lab completed list in DB
+  Future<void> updateBioLabCompleted(String studentId, List<String> processIds) async {
+    try {
+      await _db.from('users').update({'biolab_completed': processIds}).eq('id', studentId);
+    } catch (e) { debugPrint('[Supabase] updateBioLabCompleted: $e'); }
+  }
+
+  /// Get all exam results for a student (first attempts + retakes)
+  Future<List<ExamResultModel>> getAllStudentResults(String studentId) async {
+    try {
+      final res = await _db
+          .from('exam_results')
+          .select()
+          .eq('student_id', studentId)
+          .eq('is_in_progress', false)
+          .order('submitted_at', ascending: false);
+      return _parseRows(res);
+    } catch (_) { return []; }
   }
 
   Future<void> incrementChatbotUsage(String studentId) async {

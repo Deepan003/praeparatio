@@ -116,7 +116,7 @@ class _ExamEngineScreenState extends ConsumerState<ExamEngineScreen> {
                       ),
                     ),
                     // Dynamic batch chips from DB
-                    ...(ref.watch(batchNamesProvider).value ?? AppConstants.batches)
+                    ...(ref.watch(batchNamesProvider))
                         .map((b) => Padding(
                               padding: const EdgeInsets.only(right: 6),
                               child: _FilterChip(

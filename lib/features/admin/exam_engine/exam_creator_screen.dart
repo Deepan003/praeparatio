@@ -379,6 +379,8 @@ class _ExamCreatorScreenState extends ConsumerState<ExamCreatorScreen> with Sing
               aiCount: _aiCount, aiPromptCtrl: _aiPromptCtrl,
               selectedChapters: _selectedChapters, difficulty: _difficulty,
               error: _error,
+              currentExamId: widget.examId,
+              onImport: (cloned) => setState(() => _questions.addAll(cloned)),
               onGenerateAI: _generateWithAI,
               onAiCountChanged: (v) => setState(() => _aiCount = v),
               onChapterToggle: (c) => setState(() { if (_selectedChapters.contains(c)) _selectedChapters.remove(c); else _selectedChapters.add(c); }),
@@ -541,7 +543,7 @@ class _DetailsTab extends ConsumerWidget {
           _Section('Target Batches', [
             Wrap(
               spacing: 8,
-              children: (ref.watch(batchNamesProvider).value ?? AppConstants.batches)
+              children: (ref.watch(batchNamesProvider))
                   .map((b) => ChipButton(
                     label: b, selected: targetBatches.contains(b), onTap: () => onBatchToggle(b),
                     selectedColor: _batchColor(b),
@@ -860,7 +862,7 @@ class _DatePicker extends StatelessWidget {
 }
 
 // ---- QUESTIONS TAB ----
-class _QuestionsTab extends StatelessWidget {
+class _QuestionsTab extends StatefulWidget {
   final List<QuestionModel> questions;
   final bool isAiMode, isGenerating;
   final int aiCount;
@@ -868,6 +870,7 @@ class _QuestionsTab extends StatelessWidget {
   final List<String> selectedChapters;
   final String difficulty;
   final String? error;
+  final String? currentExamId;
   final VoidCallback onGenerateAI, onAddQuestion;
   final ValueChanged<int> onAiCountChanged;
   final ValueChanged<String> onChapterToggle;
@@ -875,19 +878,37 @@ class _QuestionsTab extends StatelessWidget {
   final ValueChanged<String> onRemoveQuestion;
   final ValueChanged<QuestionModel> onUpdateQuestion;
   final void Function(int, int) onReorder;
+  final ValueChanged<List<QuestionModel>> onImport;
 
-  const _QuestionsTab({required this.questions, required this.isAiMode, required this.isGenerating, required this.aiCount, required this.aiPromptCtrl, required this.selectedChapters, required this.difficulty, this.error, required this.onGenerateAI, required this.onAiCountChanged, required this.onChapterToggle, required this.onClassToggle, required this.onAddQuestion, required this.onRemoveQuestion, required this.onUpdateQuestion, required this.onReorder});
+  const _QuestionsTab({required this.questions, required this.isAiMode, required this.isGenerating, required this.aiCount, required this.aiPromptCtrl, required this.selectedChapters, required this.difficulty, this.error, this.currentExamId, required this.onGenerateAI, required this.onAiCountChanged, required this.onChapterToggle, required this.onClassToggle, required this.onAddQuestion, required this.onRemoveQuestion, required this.onUpdateQuestion, required this.onReorder, required this.onImport});
+
+  @override
+  State<_QuestionsTab> createState() => _QuestionsTabState();
+}
+
+class _QuestionsTabState extends State<_QuestionsTab> {
+  // Fraction of height given to the AI panel (0.0–1.0). Default 0.58.
+  double _splitFraction = 0.58;
+  // Total available height, set during layout
+  double _totalHeight = 0;
+
+  void _onDrag(double delta) {
+    setState(() {
+      _splitFraction = (_splitFraction + delta / _totalHeight).clamp(0.22, 0.78);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final aiPanel = _AiPanel(
-      aiCount: aiCount, aiPromptCtrl: aiPromptCtrl,
-      selectedChapters: selectedChapters, difficulty: difficulty, error: error,
-      isGenerating: isGenerating,
-      onGenerate: onGenerateAI,
-      onCountChanged: onAiCountChanged,
-      onChapterToggle: onChapterToggle,
-      onClassToggle: onClassToggle,
+      aiCount: widget.aiCount, aiPromptCtrl: widget.aiPromptCtrl,
+      selectedChapters: widget.selectedChapters, difficulty: widget.difficulty,
+      error: widget.error,
+      isGenerating: widget.isGenerating,
+      onGenerate: widget.onGenerateAI,
+      onCountChanged: widget.onAiCountChanged,
+      onChapterToggle: widget.onChapterToggle,
+      onClassToggle: widget.onClassToggle,
     );
 
     final questionsArea = Column(
@@ -895,38 +916,52 @@ class _QuestionsTab extends StatelessWidget {
         // Questions header
         Container(
           color: AppColors.neuSurface,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              Text('${questions.length} Questions', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-              const Spacer(),
-              PrimaryButton(label: 'Add Question', icon: Icons.add, onPressed: onAddQuestion),
+              Expanded(
+                child: Text('${widget.questions.length} Questions',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 8),
+              _ImportButton(
+                currentExamId: widget.currentExamId,
+                onImport: widget.onImport,
+                currentCount: widget.questions.length,
+              ),
+              const SizedBox(width: 8),
+              PrimaryButton(label: 'Add', icon: Icons.add, onPressed: widget.onAddQuestion),
             ],
           ),
         ),
         const Divider(height: 1),
         Expanded(
-          child: questions.isEmpty
+          child: widget.questions.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.quiz_outlined, size: 60, color: AppColors.textHint),
                       const SizedBox(height: 12),
-                      Text(isAiMode ? 'Generate questions using AI →' : 'Add questions manually using the button above', style: const TextStyle(color: AppColors.textHint), textAlign: TextAlign.center),
+                      Text(widget.isAiMode
+                          ? 'Generate questions using AI →'
+                          : 'Add questions manually using the button above',
+                          style: const TextStyle(color: AppColors.textHint),
+                          textAlign: TextAlign.center),
                     ],
                   ),
                 )
               : ReorderableListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: questions.length,
-                  onReorder: onReorder,
+                  itemCount: widget.questions.length,
+                  onReorder: widget.onReorder,
                   itemBuilder: (_, i) => _QuestionRow(
-                    key: ValueKey(questions[i].id),
-                    question: questions[i],
+                    key: ValueKey(widget.questions[i].id),
+                    question: widget.questions[i],
                     index: i,
-                    onRemove: () => onRemoveQuestion(questions[i].id),
-                    onUpdate: onUpdateQuestion,
+                    onRemove: () => widget.onRemoveQuestion(widget.questions[i].id),
+                    onUpdate: widget.onUpdateQuestion,
                   ),
                 ),
         ),
@@ -941,35 +976,91 @@ class _QuestionsTab extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (isAiMode)
+              if (widget.isAiMode)
                 SizedBox(width: 340, child: aiPanel),
               Expanded(
-                child: isGenerating
-                    ? _GeneratingAnimation(questionCount: aiCount)
+                child: widget.isGenerating
+                    ? _GeneratingAnimation(questionCount: widget.aiCount)
                     : questionsArea,
               ),
             ],
           );
-        } else {
-          // Mobile: when not AI mode, just show questions full-height
-          if (!isAiMode) return questionsArea;
-
-          // When generating on mobile, take full screen for animation
-          if (isGenerating) {
-            return _GeneratingAnimation(questionCount: aiCount);
-          }
-
-          // AI panel takes more space so chapter chips are usable
-          return Column(
-            children: [
-              Expanded(flex: 55, child: aiPanel),
-              const Divider(height: 3, thickness: 3, color: AppColors.border),
-              Expanded(flex: 45, child: questionsArea),
-            ],
-          );
         }
-      },
-    );
+
+        // ── Mobile layout ─────────────────────────────────────────
+        if (!widget.isAiMode) return questionsArea;
+        if (widget.isGenerating) {
+          return _GeneratingAnimation(questionCount: widget.aiCount);
+        }
+
+        // Draggable split: AI panel on top, questions below.
+        // Admin can drag the handle or tap presets to resize.
+        _totalHeight = constraints.maxHeight;
+        final aiHeight = constraints.maxHeight * _splitFraction;
+        final qHeight  = constraints.maxHeight * (1 - _splitFraction);
+
+        return Column(
+          children: [
+            // ── AI panel (variable height) ──────────────────────
+            SizedBox(height: aiHeight, child: aiPanel),
+
+            // ── Draggable divider + preset buttons ──────────────
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: (d) => _onDrag(d.delta.dy),
+              child: Container(
+                height: 38,
+                color: AppColors.neuSurface,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Drag grip dots
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(4, (_) => Container(
+                        width: 4, height: 4,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.textHint,
+                          shape: BoxShape.circle,
+                        ),
+                      )),
+                    ),
+                    const SizedBox(height: 5),
+                    // Preset buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _SplitPreset(
+                          label: '▲ AI',
+                          active: _splitFraction >= 0.65,
+                          onTap: () => setState(() => _splitFraction = 0.72),
+                        ),
+                        const SizedBox(width: 6),
+                        _SplitPreset(
+                          label: '⟺',
+                          active: _splitFraction >= 0.44 && _splitFraction < 0.65,
+                          onTap: () => setState(() => _splitFraction = 0.50),
+                        ),
+                        const SizedBox(width: 6),
+                        _SplitPreset(
+                          label: '▼ Qs',
+                          active: _splitFraction < 0.44,
+                          onTap: () => setState(() => _splitFraction = 0.28),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Questions area (remaining height) ───────────────
+            SizedBox(height: qHeight, child: questionsArea),
+          ],
+        );  // Column
+      },    // builder
+    );      // LayoutBuilder
   }
 }
 
@@ -1556,6 +1647,461 @@ class _OptionField extends StatelessWidget {
       ],
     );
   }
+}
+
+// ── Split-view preset pill ────────────────────────────────────────
+class _SplitPreset extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _SplitPreset({required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primary : AppColors.neuBackground,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: active ? AppColors.primary : AppColors.border,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: active ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      );
+}
+
+// ── Import from Exam button + two-step sheet ─────────────────────
+
+class _ImportButton extends StatelessWidget {
+  final String? currentExamId;
+  final ValueChanged<List<QuestionModel>> onImport;
+  final int currentCount;
+  const _ImportButton({this.currentExamId, required this.onImport, required this.currentCount});
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: 'Import questions from another exam',
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.primary),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          icon: const Icon(Icons.file_download_outlined, size: 16),
+          label: const Text('Import'),
+          onPressed: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => _ExamPickerSheet(
+              currentExamId: currentExamId,
+              currentCount: currentCount,
+              onImport: onImport,
+            ),
+          ),
+        ),
+      );
+}
+
+// ── Step 1: Pick source exam ─────────────────────────────────────
+
+class _ExamPickerSheet extends ConsumerStatefulWidget {
+  final String? currentExamId;
+  final int currentCount;
+  final ValueChanged<List<QuestionModel>> onImport;
+  const _ExamPickerSheet({this.currentExamId, required this.currentCount, required this.onImport});
+
+  @override
+  ConsumerState<_ExamPickerSheet> createState() => _ExamPickerSheetState();
+}
+
+class _ExamPickerSheetState extends ConsumerState<_ExamPickerSheet> {
+  String _search = '';
+  bool _loading = false;
+
+  Future<void> _copyAll(BuildContext ctx, ExamModel exam) async {
+    setState(() => _loading = true);
+    final qs = await SupabaseService.instance.getQuestionsForExam(exam.id);
+    setState(() => _loading = false);
+    if (!ctx.mounted) return;
+    if (qs.isEmpty) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(content: Text('This exam has no questions.')));
+      return;
+    }
+    final total = widget.currentCount + qs.length;
+    if (total > 200) {
+      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('Warning: adding ${qs.length} questions — total will be $total.'),
+        backgroundColor: AppColors.warning,
+      ));
+    }
+    final cloned = _cloneQuestions(qs, widget.currentExamId ?? '');
+    widget.onImport(cloned);
+    if (ctx.mounted) Navigator.pop(ctx);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allAsync = ref.watch(allExamsProvider);
+    final h = MediaQuery.sizeOf(context).height;
+
+    return Container(
+      height: h * 0.88,
+      decoration: BoxDecoration(
+        color: AppColors.neuBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: AppColors.neuRaisedStrong,
+      ),
+      child: Column(children: [
+        // Handle
+        const SizedBox(height: 12),
+        Center(child: Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 16),
+        // Header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(children: [
+            const Icon(Icons.file_download_outlined, color: AppColors.primary, size: 20),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Import from Exam',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+            IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context)),
+          ]),
+        ),
+        const SizedBox(height: 10),
+        // Search
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Search exams…',
+              prefixIcon: const Icon(Icons.search, size: 18),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
+            ),
+            onChanged: (v) => setState(() => _search = v.toLowerCase()),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Divider(height: 1),
+        Expanded(
+          child: allAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+            error: (e, _) => Center(child: Text('Error loading exams: $e')),
+            data: (exams) {
+              final filtered = exams
+                  .where((e) => e.id != widget.currentExamId)
+                  .where((e) => _search.isEmpty || e.title.toLowerCase().contains(_search))
+                  .toList();
+              if (filtered.isEmpty) return const Center(
+                  child: Text('No exams found', style: TextStyle(color: AppColors.textHint)));
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (ctx, i) {
+                  final exam = filtered[i];
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.neuSurface,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: AppColors.neuRaisedSoft,
+                    ),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                    child: Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(exam.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: AppColors.primarySurface, borderRadius: BorderRadius.circular(5)),
+                            child: Text('${exam.questionIds.length} Qs',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(5)),
+                            child: Text(exam.difficulty,
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                          ),
+                        ]),
+                      ])),
+                      const SizedBox(width: 8),
+                      // Browse button
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        ),
+                        onPressed: () => _showQuestionPicker(ctx, exam),
+                        child: const Text('Browse'),
+                      ),
+                      const SizedBox(width: 4),
+                      // Copy All shortcut
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          elevation: 0,
+                        ),
+                        onPressed: _loading ? null : () => _copyAll(ctx, exam),
+                        child: _loading
+                            ? const SizedBox(width: 14, height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : Text('Copy ${exam.questionIds.length}'),
+                      ),
+                    ]),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showQuestionPicker(BuildContext ctx, ExamModel exam) {
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _QuestionPickerSheet(
+        exam: exam,
+        currentCount: widget.currentCount,
+        onImport: (cloned) {
+          widget.onImport(cloned);
+          Navigator.pop(ctx); // close exam picker too
+        },
+        currentExamId: widget.currentExamId,
+      ),
+    );
+  }
+}
+
+// ── Step 2: Pick individual questions ────────────────────────────
+
+class _QuestionPickerSheet extends StatefulWidget {
+  final ExamModel exam;
+  final int currentCount;
+  final String? currentExamId;
+  final ValueChanged<List<QuestionModel>> onImport;
+  const _QuestionPickerSheet({required this.exam, required this.currentCount,
+      this.currentExamId, required this.onImport});
+
+  @override
+  State<_QuestionPickerSheet> createState() => _QuestionPickerSheetState();
+}
+
+class _QuestionPickerSheetState extends State<_QuestionPickerSheet> {
+  List<QuestionModel> _allQuestions = [];
+  final Set<String> _selected = {};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchQuestions();
+  }
+
+  Future<void> _fetchQuestions() async {
+    final qs = await SupabaseService.instance.getQuestionsForExam(widget.exam.id);
+    if (!mounted) return;
+    setState(() { _allQuestions = qs; _loading = false; });
+  }
+
+  void _toggleAll(bool selectAll) => setState(() {
+    if (selectAll) _selected.addAll(_allQuestions.map((q) => q.id));
+    else _selected.clear();
+  });
+
+  void _confirm(BuildContext ctx) {
+    if (_selected.isEmpty) return;
+    final chosen = _allQuestions.where((q) => _selected.contains(q.id)).toList();
+    final total = widget.currentCount + chosen.length;
+    if (total > 200) {
+      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('Warning: adding ${chosen.length} questions — total will be $total.'),
+        backgroundColor: AppColors.warning,
+      ));
+    }
+    widget.onImport(_cloneQuestions(chosen, widget.currentExamId ?? ''));
+    Navigator.pop(ctx);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height;
+    final allSelected = _allQuestions.isNotEmpty &&
+        _selected.length == _allQuestions.length;
+
+    return Container(
+      height: h * 0.90,
+      decoration: BoxDecoration(
+        color: AppColors.neuBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: AppColors.neuRaisedStrong,
+      ),
+      child: Column(children: [
+        const SizedBox(height: 12),
+        Center(child: Container(width: 36, height: 4,
+            decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+        // Header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+          child: Row(children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => Navigator.pop(context),
+              padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(widget.exam.title,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (_selected.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: AppColors.primarySurface, borderRadius: BorderRadius.circular(8)),
+                child: Text('${_selected.length} selected',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
+              ),
+            const SizedBox(width: 8),
+          ]),
+        ),
+        // Select all row
+        if (!_loading)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Row(children: [
+              Checkbox(
+                value: allSelected,
+                tristate: !allSelected && _selected.isNotEmpty,
+                activeColor: AppColors.primary,
+                onChanged: (_) => _toggleAll(!allSelected),
+              ),
+              Text('Select All (${_allQuestions.length})',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            ]),
+          ),
+        const Divider(height: 1),
+        // Question list
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              : _allQuestions.isEmpty
+                  ? const Center(child: Text('No questions in this exam.',
+                        style: TextStyle(color: AppColors.textHint)))
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(8, 6, 8, 80),
+                      itemCount: _allQuestions.length,
+                      itemBuilder: (_, i) {
+                        final q = _allQuestions[i];
+                        final checked = _selected.contains(q.id);
+                        return InkWell(
+                          onTap: () => setState(() => checked ? _selected.remove(q.id) : _selected.add(q.id)),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Checkbox(
+                                value: checked,
+                                activeColor: AppColors.primary,
+                                onChanged: (_) => setState(() => checked ? _selected.remove(q.id) : _selected.add(q.id)),
+                              ),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text('Q${i + 1}. ${q.text}',
+                                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, height: 1.4),
+                                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 3),
+                                Row(children: [
+                                  if (q.chapter.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(color: AppColors.infoSurface, borderRadius: BorderRadius.circular(4)),
+                                      child: Text(q.chapter,
+                                          style: const TextStyle(fontSize: 9, color: AppColors.info, fontWeight: FontWeight.w600),
+                                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    ),
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(4)),
+                                    child: Text(q.difficulty,
+                                        style: const TextStyle(fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                                  ),
+                                ]),
+                              ])),
+                            ]),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+        // Import button — floating above bottom
+        Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.of(context).padding.bottom + 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _selected.isEmpty ? AppColors.border : AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.file_download_outlined, size: 18),
+              label: Text(
+                _selected.isEmpty ? 'Select questions to import' : 'Import ${_selected.length} Questions',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+              onPressed: _selected.isEmpty ? null : () => _confirm(context),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Clone helper — pure Dart, no DB writes ───────────────────────
+List<QuestionModel> _cloneQuestions(List<QuestionModel> source, String targetExamId) {
+  const uuid = Uuid();
+  return source.map((q) => QuestionModel(
+    id:            uuid.v4(),
+    text:          q.text,
+    optionA:       q.optionA ?? '',
+    optionB:       q.optionB ?? '',
+    optionC:       q.optionC ?? '',
+    optionD:       q.optionD ?? '',
+    correctOption: q.correctOption,
+    explanation:   q.explanation,
+    chapter:       q.chapter,
+    difficulty:    q.difficulty,
+    imageUrl:      q.imageUrl,
+    examId:        targetExamId,
+  )).toList();
 }
 
 class _Section extends StatelessWidget {

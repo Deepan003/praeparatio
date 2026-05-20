@@ -359,10 +359,9 @@ class _ExamCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Watch latest attempt (may differ from first)
-    final latestAsync = firstResult != null
+    final latestResult = firstResult != null
         ? ref.watch(latestExamResultProvider((userId, exam.id)))
-        : const AsyncData<ExamResultModel?>(null);
-    final latestResult = latestAsync.value;
+        : null;
 
     final isAttempted = firstResult != null;
     final canAfford = userPrepcoins >= exam.expRequired;

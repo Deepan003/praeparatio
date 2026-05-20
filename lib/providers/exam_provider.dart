@@ -188,9 +188,22 @@ final studentRecentAttemptsProvider = StreamProvider.family<List<ExamResultModel
   );
 });
 
-// Latest (most recent) completed result for a specific student+exam
-// Used in exam card to show "last attempt" alongside the first attempt
+// Latest (most recent) completed result for a specific student+exam.
+// Derived from the already-streaming studentRecentAttemptsProvider —
+// no extra DB connection needed, updates automatically when results change.
 final latestExamResultProvider =
-    FutureProvider.family<ExamResultModel?, (String, String)>((ref, args) async {
-  return SupabaseService.instance.getLatestResultForExam(args.$1, args.$2);
+    Provider.family<ExamResultModel?, (String, String)>((ref, args) {
+  final studentId = args.$1;
+  final examId    = args.$2;
+  return ref.watch(studentRecentAttemptsProvider(studentId)).when(
+    data: (results) {
+      final forExam = results
+          .where((r) => r.examId == examId && !r.isInProgress)
+          .toList()
+        ..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+      return forExam.isEmpty ? null : forExam.first;
+    },
+    loading: () => null,
+    error:   (_, __) => null,
+  );
 });

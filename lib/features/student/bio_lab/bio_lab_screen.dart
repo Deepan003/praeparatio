@@ -2,18 +2,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../services/badge_service.dart';
+import '../../../services/supabase_service.dart';
 import '../../../widgets/glass_card.dart';
 import 'bio_diagram_painter.dart';
 import 'bio_process_data.dart';
 
-class BioLabScreen extends StatefulWidget {
+class BioLabScreen extends ConsumerStatefulWidget {
   const BioLabScreen({super.key});
   @override
-  State<BioLabScreen> createState() => _BioLabScreenState();
+  ConsumerState<BioLabScreen> createState() => _BioLabScreenState();
 }
 
-class _BioLabScreenState extends State<BioLabScreen>
+class _BioLabScreenState extends ConsumerState<BioLabScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
   BioProcess? _selected;
@@ -29,6 +33,19 @@ class _BioLabScreenState extends State<BioLabScreen>
   void dispose() {
     _tabs.dispose();
     super.dispose();
+  }
+
+  Future<void> _onProcessCompleted(String processId) async {
+    final user = ref.read(authProvider).value;
+    if (user == null) return;
+    if (!user.bioLabCompleted.contains(processId)) {
+      final updated = [...user.bioLabCompleted, processId];
+      await SupabaseService.instance.updateBioLabCompleted(user.id, updated);
+      ref.read(authProvider.notifier).refreshCurrentUser();
+      if (mounted) {
+        await BadgeService.instance.checkAndAward(ref, context);
+      }
+    }
   }
 
   @override
@@ -50,7 +67,11 @@ class _BioLabScreenState extends State<BioLabScreen>
         Expanded(
           child: _selected == null
               ? _WelcomePanel()
-              : _AnimationPanel(key: ValueKey(_selected!.id), process: _selected!),
+              : _AnimationPanel(
+                  key: ValueKey(_selected!.id),
+                  process: _selected!,
+                  onCompleted: _onProcessCompleted,
+                ),
         ),
       ]);
     }
@@ -70,7 +91,11 @@ class _BioLabScreenState extends State<BioLabScreen>
           ]),
         ),
         const Divider(height: 1),
-        Expanded(child: _AnimationPanel(key: ValueKey(_selected!.id), process: _selected!)),
+        Expanded(child: _AnimationPanel(
+          key: ValueKey(_selected!.id),
+          process: _selected!,
+          onCompleted: _onProcessCompleted,
+        )),
       ]);
     }
     return list;
@@ -321,7 +346,8 @@ class _WelcomePanelState extends State<_WelcomePanel>
 
 class _AnimationPanel extends StatefulWidget {
   final BioProcess process;
-  const _AnimationPanel({super.key, required this.process});
+  final void Function(String processId)? onCompleted;
+  const _AnimationPanel({super.key, required this.process, this.onCompleted});
   @override
   State<_AnimationPanel> createState() => _AnimationPanelState();
 }
@@ -378,6 +404,10 @@ class _AnimationPanelState extends State<_AnimationPanel>
         _goTo(_step + 1);
       } else {
         if (mounted) setState(() => _auto = false);
+        // Fire completion callback when auto-play finishes at the last step
+        if (mounted && _step >= widget.process.steps.length - 1) {
+          widget.onCompleted?.call(widget.process.id);
+        }
       }
     });
   }

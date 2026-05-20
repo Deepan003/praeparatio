@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,6 +22,31 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     _init();
   }
 
+  StreamSubscription<UserModel?>? _userSub;
+
+  /// Subscribe to live DB changes for this user's row.
+  /// Called after login/session-restore for non-admin users only.
+  /// Prepcoins, badges, ban status, etc. update automatically.
+  void _subscribeToUserUpdates(String userId) {
+    _userSub?.cancel();
+    _userSub = SupabaseService.instance.streamUser(userId).listen((fresh) {
+      if (!mounted) return;
+      if (fresh == null) return; // row deleted — keep current state
+      if (fresh.isBanned) {
+        _clearSession();
+        state = const AsyncData(null);
+        return;
+      }
+      // Only update if something actually changed (avoids unnecessary rebuilds)
+      final current = state.value;
+      if (current == null || fresh.prepcoins != current.prepcoins ||
+          fresh.earnedBadgeIds.length != current.earnedBadgeIds.length ||
+          fresh.isBanned != current.isBanned) {
+        state = AsyncData(fresh);
+      }
+    }, onError: (_) {}); // Non-fatal — stream errors don't crash the app
+  }
+
   Future<void> _init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -35,9 +61,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
         if (user != null && !user.isBanned) {
           AuthService.instance.setCurrentUser(user);
           if (user.isAdmin) await AiService.instance.loadSavedKey();
-          // Update cache with fresh data
           await _cacheUser(prefs, user);
           state = AsyncData(user);
+          if (!user.isAdmin) _subscribeToUserUpdates(user.id);
           return;
         } else if (user != null && user.isBanned) {
           // Definitively banned — clear session
@@ -143,13 +169,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
           return AuthResult.invalidCredentials;
         }
 
-        // Save session FIRST — so it persists even if the lastLogin update below fails
         await _saveSession(dbUser);
         state = AsyncData(dbUser);
-
-        // Update lastLogin in the background — non-critical, failures won't affect session
+        _subscribeToUserUpdates(dbUser.id); // live prepcoins/badge updates
         _tryUpdateLastLogin(dbUser);
-
         return AuthResult.success;
       }
 
@@ -199,9 +222,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   void setUser(UserModel user) => state = AsyncData(user);
 
   Future<void> logout() async {
+    _userSub?.cancel();
+    _userSub = null;
     AuthService.instance.logout();
     await _clearSession();
     state = const AsyncData(null);
+  }
+
+  @override
+  void dispose() {
+    _userSub?.cancel();
+    super.dispose();
   }
 
   UserModel? get currentUser => state.value;

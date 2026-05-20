@@ -46,7 +46,7 @@ class _DatabaseScreenState extends ConsumerState<DatabaseScreen> with SingleTick
 
   @override
   Widget build(BuildContext context) {
-    final batchNames = ref.watch(batchNamesProvider).value ?? AppConstants.batches;
+    final batchNames = ref.watch(batchNamesProvider);
     // Default to first batch once loaded
     _activeBatch ??= batchNames.isNotEmpty ? batchNames.first : AppConstants.batch11;
 

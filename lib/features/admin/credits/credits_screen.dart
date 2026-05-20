@@ -96,7 +96,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (allStudents) {
-        final batches = ['all', ...ref.watch(batchNamesProvider).value ?? AppConstants.batches];
+        final batches = ['all', ...ref.watch(batchNamesProvider)];
         final students = _activeBatch == 'all' ? allStudents : allStudents.where((s) => s.batch == _activeBatch).toList();
         final totalCoins = students.fold<int>(0, (s, u) => s + u.prepcoins);
 

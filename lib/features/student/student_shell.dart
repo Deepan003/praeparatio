@@ -11,8 +11,10 @@ import '../../core/theme/neu_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/exam_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../services/tos_service.dart';
 import '../../services/toast_service.dart';
 import '../../widgets/adaptive_nav.dart';
+import '../../widgets/tos_screen.dart';
 import '../../widgets/animated_logo.dart';
 import '../../widgets/neu_widgets.dart';
 import '../../widgets/notification_bell.dart';
@@ -35,6 +37,8 @@ final _allNavItems = [
   const NavItem(label: 'Notes',   icon: Icons.folder_outlined,        selectedIcon: Icons.folder_rounded,        route: Routes.studentNotes),
   const NavItem(label: 'Chat',    icon: Icons.chat_bubble_outline,    selectedIcon: Icons.chat_bubble_rounded,   route: Routes.studentChatbot),
   const NavItem(label: 'History', icon: Icons.history_outlined,       selectedIcon: Icons.history_rounded,       route: Routes.studentHistory),
+  // Badges at the end — a reward section, not a primary navigation destination
+  const NavItem(label: 'Badges',  icon: Icons.military_tech_outlined, selectedIcon: Icons.military_tech,         route: Routes.studentBadges),
 ];
 
 class StudentShell extends ConsumerStatefulWidget {
@@ -52,6 +56,26 @@ class _StudentShellState extends ConsumerState<StudentShell> {
   @override
   void initState() {
     super.initState();
+    // TOS check for auto-logged-in users (those who skip the login screen).
+    // Runs once per shell mount; needsAcceptance() returns fast via SharedPreferences.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final user = ref.read(authProvider).value;
+      if (user == null || user.isAdmin || !mounted) return;
+      final needs = await TosService.instance.needsAcceptance(user.id);
+      if (needs && mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => TosScreen(
+              onAccepted: () async {
+                await TosService.instance.recordAcceptance(user.id);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+            ),
+          ),
+        );
+      }
+    });
     // Subscribe to exams table changes — instantly refresh list when
     // admin publishes a new exam or changes visibility.
     _examsChannel = Supabase.instance.client
@@ -73,15 +97,49 @@ class _StudentShellState extends ConsumerState<StudentShell> {
             try {
               final newRow = payload.newRecord;
               final nowPublished = newRow['is_published'] == true;
-              // oldRecord can be {} if replication identity not set — treat
-              // missing old value as "was not published" so we show the toast
               final oldRow = payload.oldRecord;
               final wasPublished = oldRow.isNotEmpty
                   ? oldRow['is_published'] == true
                   : false;
               if (nowPublished && !wasPublished) {
-                final title = (newRow['title'] as String?) ?? 'New Exam';
-                ToastService.instance.showExamPublished(title);
+                // Only toast if this exam targets the current student's batch.
+                // target_batches is a Postgres text[] — comes as List or null.
+                final student = ref.read(authProvider).value;
+                // Parse target_batches — may arrive as JSON List or
+                // PostgreSQL text[] string {batch1,batch2} from Realtime.
+                final raw = newRow['target_batches'];
+                final List<String> batches;
+                if (raw is List) {
+                  batches = List<String>.from(raw);
+                } else if (raw is String) {
+                  final s = raw.trim();
+                  if (s == '{}' || s.isEmpty) {
+                    batches = [];
+                  } else if (s.startsWith('{') && s.endsWith('}')) {
+                    batches = s.substring(1, s.length - 1)
+                        .split(',')
+                        .map((e) => e.trim().replaceAll('"', ''))
+                        .where((e) => e.isNotEmpty)
+                        .toList();
+                  } else {
+                    batches = [];
+                  }
+                } else {
+                  batches = [];
+                }
+                // Only show toast if:
+                // - exam targets all batches (empty list AND we have no
+                //   targeting info — treat as broadcast)
+                // - OR student's batch is explicitly in the list
+                final studentBatch = student?.batch;
+                final isTargeted = studentBatch != null && (
+                    batches.isEmpty ||        // empty = targets all batches
+                    batches.contains(studentBatch)
+                );
+                if (isTargeted) {
+                  final title = (newRow['title'] as String?) ?? 'New Exam';
+                  ToastService.instance.showExamPublished(title);
+                }
               }
             } catch (_) {}
           },
@@ -370,7 +428,11 @@ class _StudentShellState extends ConsumerState<StudentShell> {
         ),
 
         Expanded(
-          child: ListView.builder(
+          child: Scrollbar(
+            thumbVisibility: true,
+            thickness: 3,
+            radius: const Radius.circular(2),
+            child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
             itemCount: _allNavItems.length,
             itemBuilder: (_, i) {
@@ -421,7 +483,8 @@ class _StudentShellState extends ConsumerState<StudentShell> {
                 ),
               );
             },
-          ),
+          ),   // ListView
+          ),   // Scrollbar
         ),
 
         Divider(height: 1, color: neu.border),

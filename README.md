@@ -18,9 +18,10 @@
 <br/>
 
 ![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Android-blueviolet?style=for-the-badge)
-![Version](https://img.shields.io/badge/Version-1.2.0-success?style=for-the-badge)
-![Dart Files](https://img.shields.io/badge/Dart_Files-110+-informational?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-2.0.0-success?style=for-the-badge)
+![Dart Files](https://img.shields.io/badge/Dart_Files-120+-informational?style=for-the-badge)
 ![Bio Diagrams](https://img.shields.io/badge/Bio_Diagrams-32_Animated-ff69b4?style=for-the-badge)
+![Badges](https://img.shields.io/badge/Achievement_Badges-90-gold?style=for-the-badge)
 ![PYQ Questions](https://img.shields.io/badge/PYQ_Questions-20K%2B-orange?style=for-the-badge)
 
 </div>
@@ -44,55 +45,57 @@
 
 ---
 
-## What's New in v1.2
+## What's New in v2.0
+
+### v2.0 — Major Release
 
 | Feature | Description |
 |---|---|
-| **Score-adaptive Result Screen** | Gradient + colors change: green ≥80%, amber 40–79%, red <40%. Animated 3-zone bar shows correct/wrong/skipped. |
-| **PYQ Bookmarks** | Long-press any question to save. Persisted via SharedPreferences. New "Saved" tab in PYQ screen. |
-| **PYQ Difficulty Pills** | Every question auto-tagged Easy/Medium/Hard via heuristic (EXCEPT/NOT/assertion patterns). |
-| **Onboarding Tour** | 3-slide coach mark on first login: Bio Lab → PYQ → Notifications. |
-| **Coin Rain** | 🪙 confetti overlay fires when PrepCoins are awarded after exam submission. |
-| **Notification Bell Pulse** | Bell pulses when unread count > 0. Badge pops in with elastic overshoot on new notification. |
-| **Skeleton Loading** | Shimmer placeholders in Notes, PYQ, and Notification sheet — no more spinners. |
-| **Animated Notes Empty State** | Notebook + pencil CustomPainter with draw-on animation. |
-| **Chatbot 3-dot Indicator** | Bouncing dots typing animation while Gemini generates. |
-| **Glossary Highlighted Search** | Matching substring highlighted in yellow across term + definition. |
-| **Bio Lab Canvas** | Height raised 65% → 90% of width. Label maxWidth 140 → 200. White pill behind every label for readability. |
-| **Exam Timer Pulse** | Timer badge pulses red/orange when < 5 min remain. |
-| **PDF Memory Fix** | Large exams (>60 Qs) use compact table layout; explanations use lightweight 3-col table. Prevents OOM on device. |
-| **AI Generator** | Skeleton animation during generation with rotating AI status messages. Compact numbered chips on mobile. |
-| **Bio Lab Nav Icon** | Science icon cycles teal ↔ green in side rail and drawer — visually distinct. |
-| **Splash Letter Animation** | PRAEPARATIO letters animate in with 55 ms stagger, elastic scale-up. |
-| **PYQ Year Recency Colors** | Year tiles color-coded: 🔴 newest → 🟢 3-4 yrs → 🔵 older. |
-| **Chapter Progress Bar** | 4px micro-bar at card bottom shows question density relative to busiest chapter. |
+| **90-Badge Achievement System** | 15 categories × 6 tiers (Bronze → Bio Legend). Fully retroactive — existing students get badges on first open. Animated unlock dialog with tier-specific animations. Dedicated Badges screen with progress tracking. |
+| **Terms of Service** | Professional 14-clause TOS shown after first login. Acceptance timestamp stored in DB. Version-gated — bumping `kTosVersion` re-shows to all users. |
+| **Import Questions from Exam** | Admin can browse any published exam and copy individual questions or entire sets into a new exam. Two-step sheet UI. Questions are cloned (new UUIDs) — fully independent. |
+| **Full App Realtime** | Batches, offline test marks, exam results on cards, and user data (prepcoins, badges) now update live via Supabase Streams. No page refresh needed anywhere. |
+| **Batch-targeted Exam Toast Bug Fix** | Toast on exam publish now only fires for students in the targeted batch, not all users. |
+| **Notification Mark-as-Read Fix** | Fixed `is_read` not persisting on reload — fallback query now cross-references `notification_reads` table. |
+| **Draggable AI/Questions Split** | On mobile, the AI panel and questions list have a draggable divider with preset buttons (AI ▲ / Split ⟺ / Questions ▼). |
+| **Score-adaptive Result Screen** | Gradient changes: green ≥80%, amber 40–79%, red <40%. Animated 3-zone bar. |
+| **PYQ Bookmarks** | Saved tab, persisted via SharedPreferences + Riverpod StateNotifier. |
+| **Onboarding Tour** | 3-slide coach mark on first login (Bio Lab, PYQ, Notifications). |
+| **Coin Rain Overlay** | 🪙 28-particle confetti on PrepCoin award. |
+| **Game Answer Burst Redesign** | Glass-style card with colored border (BackdropFilter blur). No more heavy solid overlay. |
+| **Chatbot 3-dot Typing Indicator** | Bouncing dots + rotating AI status during response generation. |
+| **Glossary Live Highlighting** | Yellow substring highlight as you type. |
+| **Bio Lab** | Taller canvas (90%), white label pills, animated flask header, process glow on select. |
+| **Splash Cinematic Animation** | Letters stagger in 90ms apart; tagline reveals word-by-word with blur-focus effect. |
+| **PDF Fixes** | OOM fix via `compute()` isolate + capped chapter table. Chatbot PDF uses MultiPage for long answers. |
 
 ---
 
 ## Features
 
-### Student (11 nav items)
-- **Online Exams (CBT)** — NEET scoring (+4/-1), auto-submit, resume in-progress, score-adaptive result screen
-- **PYQ Practice** — 20,000+ questions, Chapterwise / Yearwise / Custom Test / Bookmarks tabs, difficulty pills
-- **Dynamic Bio Lab** — 32 animated biological process diagrams, Animation ↔ Steps toggle, taller canvas
+### Student (12 nav items)
+- **Online Exams (CBT)** — NEET scoring (+4/-1), auto-submit, resume in-progress, score-adaptive result screen, exam question import
+- **PYQ Practice** — 20,000+ questions, Chapterwise / Yearwise / Custom Test / Bookmarks tabs, difficulty pills, recency colours
+- **Dynamic Bio Lab** — 32 animated process diagrams, draggable canvas, Auto Play completion tracking for badges
 - **Flashcards** — 500+ NEET Biology cards, works offline (Hive cache)
 - **Glossary** — searchable with live substring highlighting
-- **Games** — MCQ Speed, Matching, Fill-in-blank, and more
-- **Notes & PDFs** — admin-uploaded, collapsible sections, animated empty state
-- **Biology Doubt Solver** — Groq/OpenAI-compatible chatbot, 350 q/day limit, 3-dot typing indicator, PDF download
-- **Offline Results** — admin-entered test marks, batch rankings
+- **Games** — 25+ biology games (MCQ, Match, True/False, Diagnosis, Punnett Square, and more)
+- **Notes & PDFs** — admin-uploaded, collapsible sections, animated empty state, Google Drive sign-in detection
+- **Biology Doubt Solver** — AI chatbot, 350 q/day, 3-dot typing indicator, MultiPage PDF download
+- **Offline Results** — admin-entered test marks, live updates when teacher enters marks
 - **History** — full exam activity log and score trends
-- **Notifications** — real-time bell with pulse animation, shimmer loading, in-app inbox (modal)
+- **Notifications** — real-time bell, mark-as-read persisted in DB, last 10 stored
+- **Badges** — 90 achievement badges across 15 categories, 6 tiers, animated unlock dialogs
 
 ### Admin (10 nav items)
-- **Student Management** — CRUD, CSV import/export, ban/unban, fee tracking
-- **Batch Management** — create/rename/delete/promote, sync class levels
-- **Exam Engine** — AI (Gemini) + manual creator, scheduling, statistics, PDF download
+- **Student Management** — CRUD, CSV import/export, ban/unban, fee tracking, live realtime updates
+- **Batch Management** — create/rename/delete/promote, sync class levels, live realtime
+- **Exam Engine** — AI (Gemini) + manual creator, import from existing exams, draggable mobile split, scheduling, statistics, PDF download
 - **Notes Admin** — upload PDFs and links, reorder sections, visibility control
 - **PYQ Upload** — CSV per year, safe chunked replacement
-- **Credits** — manage student Prepcoins
-- **Send Notifications** — targeted to all / batch / individual student
-- **Student Activity** — per-student exam history and performance
+- **Credits** — manage student PrepCoins
+- **Send Notifications** — targeted to all / batch / individual student (batch-scoped toasts)
+- **Student Activity** — per-student exam history, performance, and badge grid
 - **Developer Config** — maintenance mode, chatbot API settings, exam AI settings, developer profile
 
 ---

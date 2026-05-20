@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:uuid/uuid.dart';
+import '../../../services/badge_service.dart';
 import '../../../services/haptic_service.dart';
 import '../../../core/constants/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -67,6 +68,7 @@ class _CBTPortalState extends ConsumerState<CBTPortal> with WidgetsBindingObserv
     WidgetsBinding.instance.addObserver(this);
     // Block non-urgent toasts while exam is active
     ToastService.instance.setExamActive(true);
+    BadgeService.isExamActive = true;
     _initialize();
   }
 
@@ -590,7 +592,16 @@ class _CBTPortalState extends ConsumerState<CBTPortal> with WidgetsBindingObserv
     }
 
     setState(() { _submitted = true; _submitting = false; });
+    BadgeService.isExamActive = false;
     if (!mounted) return;
+
+    // Badge check after exam
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) {
+        await BadgeService.instance.checkAndAward(ref, context);
+        BadgeService.flushPendingDialogs(context);
+      }
+    });
 
     // ── Auto-notifications ────────────────────────────────────
     // Exam submitted confirmation (always)

@@ -10,8 +10,10 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/tos_service.dart';
 import '../../widgets/animated_logo.dart';
 import '../../widgets/neu_widgets.dart';
+import '../../widgets/tos_screen.dart';
 import 'admin_login_dialog.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -71,6 +73,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               studentId:   loggedIn.id,
               studentName: loggedIn.name,
             );
+          }
+          // Check TOS acceptance — show blocking screen if needed
+          final needsTos = await TosService.instance.needsAcceptance(loggedIn.id);
+          if (!mounted) return;
+          if (needsTos) {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                fullscreenDialog: true,
+                builder: (_) => TosScreen(
+                  onAccepted: () async {
+                    await TosService.instance.recordAcceptance(loggedIn.id);
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
+                ),
+              ),
+            );
+            if (!mounted) return;
           }
         }
         setState(() => _showingSkeleton = true);

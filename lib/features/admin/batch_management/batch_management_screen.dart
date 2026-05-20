@@ -133,8 +133,8 @@ class _BatchManagementScreenState
         classLevel: classLevel,
         displayOrder: order,
       ));
-      ref.invalidate(batchesProvider);
-      ref.invalidate(batchNamesProvider);
+      
+      
       _snack('Batch "$name" created');
       await _loadCounts();
     } catch (e) {
@@ -234,8 +234,8 @@ class _BatchManagementScreenState
     try {
       await SupabaseService.instance.renameBatch(batch.name, newName, classLevel);
       if (newName != batch.name) _counts[newName] = _counts.remove(batch.name) ?? 0;
-      ref.invalidate(batchesProvider);
-      ref.invalidate(batchNamesProvider);
+      
+      
       _snack('Batch updated successfully');
       await _loadCounts();
     } catch (e) {
@@ -346,8 +346,8 @@ class _BatchManagementScreenState
         orElse: () => BatchModel(name: destination!, classLevel: '11'),
       );
       await SupabaseService.instance.syncStudentClassForBatch(destination!, destBatch.classLevel);
-      ref.invalidate(batchesProvider);
-      ref.invalidate(batchNamesProvider);
+      
+      
       _snack('$count students moved to "$destination" (Class ${destBatch.classLevel})');
       await _loadCounts();
     } catch (e) {
@@ -482,8 +482,8 @@ class _BatchManagementScreenState
     setState(() => _busy = true);
     try {
       await SupabaseService.instance.deleteBatch(batch.name);
-      ref.invalidate(batchesProvider);
-      ref.invalidate(batchNamesProvider);
+      
+      
       _counts.remove(batch.name);
       _snack('Batch "${batch.name}" and all its data deleted');
     } catch (e) {

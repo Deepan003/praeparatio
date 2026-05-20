@@ -195,6 +195,7 @@ class AdminShell extends ConsumerWidget {
                         showModalBottomSheet(
                           context: context,
                           backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
                           builder: (_) => _AdminMoreSheet(
                             items: _adminNavItems.skip(4).toList(),
                             currentLocation: location,

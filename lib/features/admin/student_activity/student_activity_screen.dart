@@ -35,7 +35,7 @@ class _StudentActivityScreenState
 
   @override
   Widget build(BuildContext context) {
-    final batchNames = ref.watch(batchNamesProvider).value ?? AppConstants.batches;
+    final batchNames = ref.watch(batchNamesProvider);
     _activeBatch ??= batchNames.isNotEmpty ? batchNames.first : AppConstants.batch11;
     final activeBatch = _activeBatch!; // local non-nullable copy for Dart promotion
     final studentsAsync = ref.watch(batchStudentsProvider(activeBatch));

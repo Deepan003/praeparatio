@@ -119,16 +119,39 @@ class NotificationModel {
         body:             m['body']  as String? ?? '',
         data:             Map<String, dynamic>.from(m['data'] as Map? ?? {}),
         targetType:       m['target_type'] as String? ?? 'all',
-        targetBatches:    List<String>.from(m['target_batches'] as List? ?? []),
+        targetBatches:    _parseStringArray(m['target_batches']),
         targetStudentId:  m['target_student_id'] as String?,
         createdBy:        m['created_by'] as String? ?? 'system',
         createdAt:        DateTime.parse(m['created_at'] as String),
         isRead:           m['is_read'] as bool? ?? false,
       );
 
+  /// Parses both JSON arrays (List) and PostgreSQL text[] strings ({item1,item2})
+  /// that Supabase Realtime sends for array columns.
+  static List<String> _parseStringArray(dynamic val) {
+    if (val is List) return List<String>.from(val);
+    if (val is String) {
+      final s = val.trim();
+      if (s == '{}' || s.isEmpty) return [];
+      if (s.startsWith('{') && s.endsWith('}')) {
+        return s.substring(1, s.length - 1)
+            .split(',')
+            .map((e) => e.trim().replaceAll('"', ''))
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+    }
+    return [];
+  }
+
   bool isRelevantFor(String studentId, String batch) {
     if (targetType == 'all') return true;
-    if (targetType == 'batch') return targetBatches.contains(batch);
+    if (targetType == 'batch') {
+      // If targetBatches is empty (data error), fall back to showing to all
+      // rather than silently dropping the notification for every student.
+      if (targetBatches.isEmpty) return true;
+      return targetBatches.contains(batch);
+    }
     if (targetType == 'individual') return targetStudentId == studentId;
     return false;
   }

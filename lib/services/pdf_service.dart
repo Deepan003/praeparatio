@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../models/badge_model.dart';
 import '../models/exam_model.dart';
 import '../models/exam_result_model.dart';
 import '../models/offline_test_model.dart';
@@ -1511,6 +1512,7 @@ class PdfService {
     required String studentName,
     required String batch,
     List<QuestionModel> questions = const [],
+    List<String> earnedBadgeIds = const [],
   }) async {
     final doc = pw.Document();
     final now = _fmt(DateTime.now());
@@ -1597,6 +1599,11 @@ class PdfService {
                 pw.SizedBox(height: 20),
                 _chapterBreakdownSection(questions, firstAttempt.answers),
               ],
+              // Badges earned section
+              if (earnedBadgeIds.isNotEmpty) ...[
+                pw.SizedBox(height: 16),
+                _badgesSection(earnedBadgeIds),
+              ],
               pw.SizedBox(height: 20),
               _divider(),
               pw.Center(child: pw.Text(
@@ -1610,6 +1617,54 @@ class PdfService {
     ));
 
     return doc.save();
+  }
+
+  static pw.Widget _badgesSection(List<String> earnedIds) {
+    final badges = earnedIds
+        .map((id) => BadgeDefinitions.findById(id))
+        .whereType<BadgeModel>()
+        .toList()
+      ..sort((a, b) => a.tier.index.compareTo(b.tier.index));
+
+    if (badges.isEmpty) return pw.SizedBox.shrink();
+
+    const tierColors = <BadgeTier, PdfColor>{
+      BadgeTier.bronze:    PdfColor.fromInt(0xFFCD7F32),
+      BadgeTier.silver:    PdfColor.fromInt(0xFFA8A9AD),
+      BadgeTier.gold:      PdfColor.fromInt(0xFFFFD700),
+      BadgeTier.mythic:    PdfColor.fromInt(0xFF7C3AED),
+      BadgeTier.legendary: PdfColor.fromInt(0xFFE05D12),
+      BadgeTier.bioLegend: PdfColor.fromInt(0xFF06B6D4),
+    };
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: _primary.shade(0.05),
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+        border: pw.Border.all(color: _primary.shade(0.2)),
+      ),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('Badges Earned (${badges.length})', style: _h3(_primary)),
+        pw.SizedBox(height: 10),
+        pw.Wrap(spacing: 8, runSpacing: 8, children: badges.map((b) {
+          final c = tierColors[b.tier] ?? _primary;
+          return pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: pw.BoxDecoration(
+              color: c.shade(0.1),
+              border: pw.Border.all(color: c.shade(0.4)),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+            ),
+            child: pw.Row(mainAxisSize: pw.MainAxisSize.min, children: [
+              pw.Text(b.emoji, style: const pw.TextStyle(fontSize: 12)),
+              pw.SizedBox(width: 4),
+              pw.Text(b.name, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: c)),
+            ]),
+          );
+        }).toList()),
+      ]),
+    );
   }
 
   // ════════════════════════════════════════════════════════════

@@ -1,8 +1,36 @@
-# PRAEPARATIO — Full Technical Documentation
+# PRAEPARATIO — Full Technical Documentation v2.0
 
 > *"Examination is nothing but fine preparation."*
 
 Complete technical reference covering every file, database table, workflow, and deployment step.
+
+---
+
+## v2.0 — SQL to run before deploying
+
+```sql
+-- Badge system activity tracking
+ALTER TABLE users ADD COLUMN IF NOT EXISTS games_played text[] DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS biolab_completed text[] DEFAULT '{}';
+
+-- Terms of Service audit trail
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tos_accepted_at timestamp with time zone;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tos_version text DEFAULT NULL;
+```
+
+## v2.0 — Key Technical Changes
+
+| Area | Change |
+|---|---|
+| **Badge System** | `BadgeService` (new) checks 15 categories on exam submit + app open. 90 badges, 6 tiers. `games_played[]` and `biolab_completed[]` on `users` table. Retroactive on first open. |
+| **TOS** | `TosService` + `TosScreen`. `tos_accepted_at` + `tos_version` written to DB. Bump `kTosVersion` in `lib/widgets/tos_screen.dart` to re-show TOS to all users. |
+| **Full Realtime** | `batchesProvider` → `StreamProvider`. Offline tests → `StreamProvider`. `latestExamResultProvider` → plain `Provider` derived from existing stream. `AuthNotifier` subscribes to `streamUser(userId)` — prepcoins/badges update without `refreshCurrentUser()`. |
+| **Import Questions** | Admin can copy questions from any published exam. `_ExamPickerSheet` + `_QuestionPickerSheet` + `_cloneQuestions()` in `exam_creator_screen.dart`. New UUIDs always — never shares question IDs. |
+| **Notification read fix** | `getForStudent()` fallback now cross-references `notification_reads` so `is_read` survives app reload. |
+| **Batch toast fix** | Exam-published Realtime toast checks `target_batches` against student's batch before firing. |
+| **Draggable split** | Mobile exam creator has draggable AI/Questions split with ▲ AI / ⟺ / ▼ Qs presets. |
+
+---
 
 ---
 

@@ -106,7 +106,7 @@ class _SendNotificationScreenState
 
   @override
   Widget build(BuildContext context) {
-    final batches = ref.watch(batchNamesProvider).value ?? [];
+    final batches = ref.watch(batchNamesProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),

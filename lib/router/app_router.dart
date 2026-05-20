@@ -38,6 +38,7 @@ import '../features/student/chatbot/chatbot_screen.dart';
 import '../features/student/notes/notes_screen.dart';
 import '../features/student/external_links/external_links_screen.dart';
 import '../features/student/results/offline_results_screen.dart';
+import '../features/student/badges/badges_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _adminShellKey  = GlobalKey<NavigatorState>(debugLabel: 'admin');
@@ -127,6 +128,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: Routes.studentNotes,          builder: (_, __) => const NotesScreen()),
           GoRoute(path: Routes.studentLinks,          builder: (_, __) => const ExternalLinksScreen()),
           GoRoute(path: Routes.studentOfflineResults, builder: (_, __) => const OfflineResultsScreen()),
+          GoRoute(path: Routes.studentBadges,         builder: (_, __) => const BadgesScreen()),
         ],
       ),
     ],

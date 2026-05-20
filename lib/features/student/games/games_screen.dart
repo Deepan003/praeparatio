@@ -2,8 +2,12 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/ncert_chapters.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../services/badge_service.dart';
+import '../../../services/supabase_service.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../widgets/glass_card.dart';
 import 'new_games.dart';
@@ -12,16 +16,30 @@ import 'game_effects.dart';
 import 'game_engine_widgets.dart' show showAnswerBurst;
 
 // ─── Entry screen ────────────────────────────────────────────
-class GamesScreen extends StatefulWidget {
+class GamesScreen extends ConsumerStatefulWidget {
   const GamesScreen({super.key});
 
   @override
-  State<GamesScreen> createState() => _GamesScreenState();
+  ConsumerState<GamesScreen> createState() => _GamesScreenState();
 }
 
-class _GamesScreenState extends State<GamesScreen> {
+class _GamesScreenState extends ConsumerState<GamesScreen> {
   _Game? _activeGame;
   String _search = '';
+
+  Future<void> _onGameSelected(_Game g) async {
+    final user = ref.read(authProvider).value;
+    if (user != null && !user.gamesPlayed.contains(g.name)) {
+      final updated = [...user.gamesPlayed, g.name];
+      await SupabaseService.instance.updateGamesPlayed(user.id, updated);
+      ref.read(authProvider.notifier).refreshCurrentUser();
+      // Badge check for games category
+      if (mounted) {
+        await BadgeService.instance.checkAndAward(ref, context);
+      }
+    }
+    if (mounted) setState(() => _activeGame = g);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +166,7 @@ class _GamesScreenState extends State<GamesScreen> {
                     final globalIdx = _gamesList.indexOf(g);
                     return _GameCard(
                       game: g,
-                      onPlay: () => setState(() => _activeGame = g),
+                      onPlay: () => _onGameSelected(g),
                     ).animate(delay: (globalIdx * 40).ms)
                         .fadeIn(duration: 250.ms)
                         .scale(begin: const Offset(0.88, 0.88), curve: Curves.easeOut);

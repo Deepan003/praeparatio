@@ -6,14 +6,14 @@ import 'package:uuid/uuid.dart';
 
 const _uuid = Uuid();
 
-// All students
-final allStudentsProvider = FutureProvider<List<UserModel>>((ref) async {
-  return SupabaseService.instance.getAllStudents();
+// All students — realtime stream: rebuilds whenever any user row changes
+final allStudentsProvider = StreamProvider<List<UserModel>>((ref) {
+  return SupabaseService.instance.streamAllStudents();
 });
 
-// Students by batch
-final batchStudentsProvider = FutureProvider.family<List<UserModel>, String>((ref, batch) async {
-  return SupabaseService.instance.getStudentsByBatch(batch);
+// Students by batch — realtime stream per batch
+final batchStudentsProvider = StreamProvider.family<List<UserModel>, String>((ref, batch) {
+  return SupabaseService.instance.streamStudentsByBatch(batch);
 });
 
 // Single student

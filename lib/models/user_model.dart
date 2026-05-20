@@ -12,6 +12,10 @@ class UserModel {
   final bool isAdmin;
   bool isBanned;
   List<String> earnedBadgeIds;
+  List<String> gamesPlayed;
+  List<String> bioLabCompleted;
+  DateTime? tosAcceptedAt;
+  String? tosVersion;
   String? selectedAvatarId;
   List<String> claimedAvatarIds;
   final DateTime createdAt;
@@ -32,6 +36,10 @@ class UserModel {
     this.isAdmin = false,
     this.isBanned = false,
     List<String>? earnedBadgeIds,
+    List<String>? gamesPlayed,
+    List<String>? bioLabCompleted,
+    this.tosAcceptedAt,
+    this.tosVersion,
     this.selectedAvatarId,
     List<String>? claimedAvatarIds,
     required this.createdAt,
@@ -40,6 +48,8 @@ class UserModel {
     List<String>? feeExemptMonths,
     Map<String, int>? loginStreak,
   })  : earnedBadgeIds = earnedBadgeIds ?? [],
+        gamesPlayed = gamesPlayed ?? [],
+        bioLabCompleted = bioLabCompleted ?? [],
         claimedAvatarIds = claimedAvatarIds ?? [],
         monthlyPayments = monthlyPayments ?? {},
         feeExemptMonths = feeExemptMonths ?? [],
@@ -83,6 +93,10 @@ class UserModel {
         'isAdmin': isAdmin,
         'isBanned': isBanned,
         'earnedBadgeIds': earnedBadgeIds,
+        'games_played': gamesPlayed,
+        'biolab_completed': bioLabCompleted,
+        'tos_accepted_at': tosAcceptedAt?.toIso8601String(),
+        'tos_version': tosVersion,
         'selectedAvatarId': selectedAvatarId,
         'claimedAvatarIds': claimedAvatarIds,
         'createdAt': createdAt.toIso8601String(),
@@ -103,6 +117,12 @@ class UserModel {
         isAdmin: map['isAdmin'] ?? false,
         isBanned: map['isBanned'] ?? false,
         earnedBadgeIds: List<String>.from(map['earnedBadgeIds'] ?? []),
+        gamesPlayed: List<String>.from(map['games_played'] ?? []),
+        bioLabCompleted: List<String>.from(map['biolab_completed'] ?? []),
+        tosAcceptedAt: map['tos_accepted_at'] != null
+            ? DateTime.tryParse(map['tos_accepted_at'].toString())
+            : null,
+        tosVersion: map['tos_version'] as String?,
         selectedAvatarId: map['selectedAvatarId'],
         claimedAvatarIds: List<String>.from(map['claimedAvatarIds'] ?? []),
         createdAt: DateTime.parse(map['createdAt']),
@@ -117,6 +137,8 @@ class UserModel {
     int? prepcoins,
     bool? isBanned,
     List<String>? earnedBadgeIds,
+    List<String>? gamesPlayed,
+    List<String>? bioLabCompleted,
     String? selectedAvatarId,
     List<String>? claimedAvatarIds,
     DateTime? lastLogin,
@@ -133,11 +155,14 @@ class UserModel {
         isAdmin: isAdmin,
         isBanned: isBanned ?? this.isBanned,
         earnedBadgeIds: earnedBadgeIds ?? List.from(this.earnedBadgeIds),
+        gamesPlayed: gamesPlayed ?? List.from(this.gamesPlayed),
+        bioLabCompleted: bioLabCompleted ?? List.from(this.bioLabCompleted),
         selectedAvatarId: selectedAvatarId ?? this.selectedAvatarId,
         claimedAvatarIds: claimedAvatarIds ?? List.from(this.claimedAvatarIds),
         createdAt: createdAt,
         lastLogin: lastLogin ?? this.lastLogin,
         monthlyPayments: monthlyPayments ?? Map.from(this.monthlyPayments),
         feeExemptMonths: feeExemptMonths ?? List.from(this.feeExemptMonths),
+        loginStreak: loginStreak,
       );
 }

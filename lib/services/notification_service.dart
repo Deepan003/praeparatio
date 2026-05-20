@@ -44,11 +44,13 @@ class NotificationService {
 
   Future<void> _cleanup() async {
     try {
+      // Keep 500 most recent — enough for a multi-batch school
+      // with many students without losing older per-student notifications.
       final keep = await _db
           .from('notifications')
           .select('id')
           .order('created_at', ascending: false)
-          .limit(50);
+          .limit(500);
       // Safe extraction — skip any malformed rows instead of crashing
       final keepIds = <String>[];
       for (final r in keep as List) {
@@ -69,7 +71,7 @@ class NotificationService {
   /// recent notifications and filters client-side using isRelevantFor().
   Future<List<NotificationModel>> getForStudent(
       String studentId, String batch) async {
-    // ── RPC path ──────────────────────────────────────────────
+    // ── RPC path — trust the stored procedure result ──────────
     try {
       final res = await _db.rpc('get_notifications_for_student', params: {
         'p_student_id': studentId,
@@ -91,7 +93,7 @@ class NotificationService {
           .from('notifications')
           .select()
           .order('created_at', ascending: false)
-          .limit(50);
+          .limit(200); // fetch more so batch-specific notifications aren't missed
 
       final all = (res as List? ?? [])
           .whereType<Map>()
@@ -104,7 +106,33 @@ class NotificationService {
           .take(10)
           .toList();
 
-      return relevant.isNotEmpty ? relevant : all.take(10).toList();
+      // Never fall back to unfiltered data — returning other students' notifications
+      // is a privacy leak. If nothing is relevant for this student, return empty.
+      final toReturn = relevant;
+
+      // ── Critical fix: the `notifications` table has no `is_read` column.
+      // Read status lives in `notification_reads`. Fetch it separately and
+      // apply so that previously-read notifications don't reappear as unread.
+      try {
+        final reads = await _db
+            .from('notification_reads')
+            .select('notification_id')
+            .eq('student_id', studentId);
+        final readIds = <String>{};
+        for (final r in reads as List) {
+          final id = (r as Map?)? ['notification_id'];
+          if (id is String) readIds.add(id);
+        }
+        if (readIds.isNotEmpty) {
+          for (final n in toReturn) {
+            if (readIds.contains(n.id)) n.isRead = true;
+          }
+        }
+      } catch (_) {
+        // Non-fatal — if we can't fetch reads, show all as unread
+      }
+
+      return toReturn;
     } catch (e) {
       debugPrint('[NotificationService] direct fallback: $e');
       return [];

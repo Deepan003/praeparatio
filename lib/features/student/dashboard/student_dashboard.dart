@@ -17,6 +17,7 @@ import '../../../providers/exam_provider.dart';
 import '../../../providers/student_provider.dart';
 
 import '../../../models/offline_test_model.dart';
+import '../../../services/badge_service.dart';
 import '../../../services/supabase_service.dart';
 import '../../../widgets/badge_widget.dart';
 import '../../../widgets/glass_card.dart';
@@ -25,9 +26,10 @@ import '../../../widgets/onboarding_tour.dart';
 import '../../../widgets/skeleton.dart';
 import '../../../widgets/stat_card.dart';
 
+// Live stream — updates the dashboard instantly when teacher enters marks.
 final _offlineDashProvider =
-    FutureProvider.family<List<OfflineTestModel>, String>((ref, batch) async {
-  return SupabaseService.instance.getOfflineTestsByBatch(batch);
+    StreamProvider.family<List<OfflineTestModel>, String>((ref, batch) {
+  return SupabaseService.instance.streamOfflineTestsByBatch(batch);
 });
 
 class StudentDashboard extends ConsumerWidget {
@@ -61,6 +63,8 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
       ref.read(authProvider.notifier).refreshCurrentUser();
       // Show 3-slide onboarding tour on first ever login
       maybeShowTour(context);
+      // Badge check on app open (retroactive on first time)
+      BadgeService.instance.checkAndAward(ref, context, isRetroactive: true);
     });
   }
 

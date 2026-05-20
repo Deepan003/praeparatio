@@ -41,4 +41,5 @@ class Routes {
   static const String studentLinks = '/student/external-links';
   static const String studentNcertPdf = '/student/ncert-pdf/:class';
   static const String studentOfflineResults = '/student/offline-results';
+  static const String studentBadges = '/student/badges';
 }

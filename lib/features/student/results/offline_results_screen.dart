@@ -12,15 +12,17 @@ import '../../../services/supabase_service.dart';
 import '../../../widgets/glass_card.dart';
 import '../../../widgets/skeleton.dart';
 
-// ── Providers ─────────────────────────────────────────────────
+// ── Providers — both are live streams ─────────────────────────
 final _offlineTestsResultProvider =
-    FutureProvider.family<List<OfflineTestModel>, String>((ref, batch) async {
-  return SupabaseService.instance.getOfflineTestsByBatch(batch);
+    StreamProvider.family<List<OfflineTestModel>, String>((ref, batch) {
+  return SupabaseService.instance.streamOfflineTestsByBatch(batch);
 });
 
+// Students are already streaming via batchStudentsProvider but this
+// local alias keeps the results screen self-contained.
 final _batchStudentsForResultsProvider =
-    FutureProvider.family<List<UserModel>, String>((ref, batch) async {
-  return SupabaseService.instance.getStudentsByBatch(batch);
+    StreamProvider.family<List<UserModel>, String>((ref, batch) {
+  return SupabaseService.instance.streamStudentsByBatch(batch);
 });
 
 // ── Combined Results Screen ───────────────────────────────────
