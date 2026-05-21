@@ -1193,65 +1193,136 @@ class _OfflineMarksSheetState extends ConsumerState<_OfflineMarksSheet> {
     }
   }
 
+  Widget _testListPanel() => Column(
+        children: [
+          Container(
+            color: AppColors.primarySurface,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(children: [
+              const Expanded(child: Text('Tests',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13,
+                      color: AppColors.primary))),
+              if (_tests.isNotEmpty && _students.isNotEmpty)
+                DownloadButton(
+                  label: 'Progress',
+                  filename: 'Test_Progress_${widget.batch.replaceAll(' ', '_')}',
+                  csvBuilder: _progressCsv,
+                  pdfBuilder: _progressPdf,
+                  compact: true,
+                ),
+              IconButton(
+                icon: const Icon(Icons.add, size: 18, color: AppColors.primary),
+                onPressed: _addTest,
+                tooltip: 'Add test',
+              ),
+            ]),
+          ),
+          Expanded(
+            child: _tests.isEmpty
+                ? const Center(child: Text('No tests yet.\nTap + to add one.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textHint, height: 1.6)))
+                : ListView.builder(
+                    itemCount: _tests.length,
+                    itemBuilder: (_, i) {
+                      final t = _tests[i];
+                      final isSel = _selectedTest?.id == t.id;
+                      return ListTile(
+                        selected: isSel,
+                        selectedTileColor: AppColors.primarySurface,
+                        dense: true,
+                        title: Text(t.name,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isSel
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                color: isSel
+                                    ? AppColors.primary
+                                    : AppColors.textPrimary)),
+                        subtitle: Text(DateFormat('dd MMM yyyy').format(t.date),
+                            style: const TextStyle(fontSize: 11)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              size: 14, color: AppColors.error),
+                          onPressed: () async {
+                            await SupabaseService.instance
+                                .deleteOfflineTest(t.id);
+                            _load();
+                          },
+                        ),
+                        onTap: () => setState(() => _selectedTest = t),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
-    return Row(
-      children: [
-        // Test list panel
-        SizedBox(
-          width: 220,
-          child: Column(
-            children: [
-              Container(
-                color: AppColors.primarySurface,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    const Expanded(child: Text('Tests', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.primary))),
-                    if (_tests.isNotEmpty && _students.isNotEmpty)
-                      DownloadButton(label: 'Progress Report', filename: 'Test_Progress_${widget.batch.replaceAll(' ', '_')}', csvBuilder: _progressCsv, pdfBuilder: _progressPdf, compact: true),
-                    IconButton(icon: const Icon(Icons.add, size: 18, color: AppColors.primary), onPressed: _addTest, tooltip: 'Add test'),
-                  ],
-                ),
+    return LayoutBuilder(builder: (context, constraints) {
+      final isMobile = constraints.maxWidth < 600;
+
+      // ── Desktop / tablet — side-by-side ────────────────────
+      if (!isMobile) {
+        return Row(children: [
+          SizedBox(width: 220, child: _testListPanel()),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: _selectedTest == null
+                ? const Center(child: Text('Select or add a test',
+                    style: TextStyle(color: AppColors.textHint)))
+                : _MarksTable(test: _selectedTest!, students: _students,
+                      onSave: _load, batch: widget.batch),
+          ),
+        ]);
+      }
+
+      // ── Mobile — stacked: test list → tap → full-screen marks ─
+      if (_selectedTest != null) {
+        return Column(children: [
+          // Header bar with back button
+          Container(
+            color: AppColors.primarySurface,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_rounded,
+                    color: AppColors.primary),
+                onPressed: () => setState(() => _selectedTest = null),
               ),
               Expanded(
-                child: ListView.builder(
-                  itemCount: _tests.length,
-                  itemBuilder: (_, i) {
-                    final t = _tests[i];
-                    return ListTile(
-                      selected: _selectedTest?.id == t.id,
-                      selectedTileColor: AppColors.primarySurface,
-                      dense: true,
-                      title: Text(t.name, style: const TextStyle(fontSize: 13)),
-                      subtitle: Text(DateFormat('dd MMM yyyy').format(t.date), style: const TextStyle(fontSize: 11)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 14, color: AppColors.error),
-                        onPressed: () async {
-                          await SupabaseService.instance.deleteOfflineTest(t.id);
-                          _load();
-                        },
-                      ),
-                      onTap: () => setState(() => _selectedTest = t),
-                    );
-                  },
-                ),
+                child: Text(_selectedTest!.name,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.primary),
+                    overflow: TextOverflow.ellipsis),
               ),
-            ],
+              Text('Full Marks: ${_selectedTest!.fullMarks}',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary)),
+              const SizedBox(width: 8),
+            ]),
           ),
-        ),
-        const VerticalDivider(width: 1),
-        // Marks sheet
-        Expanded(
-          child: _selectedTest == null
-              ? const Center(child: Text('Select or add a test', style: TextStyle(color: AppColors.textHint)))
-              : _MarksTable(test: _selectedTest!, students: _students,
-                    onSave: _load, batch: widget.batch),
-        ),
-      ],
-    );
+          const Divider(height: 1),
+          Expanded(
+            child: _MarksTable(
+              test: _selectedTest!,
+              students: _students,
+              onSave: _load,
+              batch: widget.batch,
+            ),
+          ),
+        ]);
+      }
+
+      // Mobile — show the test list full-width
+      return _testListPanel();
+    });
   }
 }
 
